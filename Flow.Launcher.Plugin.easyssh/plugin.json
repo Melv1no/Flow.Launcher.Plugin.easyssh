@@ -1,0 +1,12 @@
+{
+    "ID": "8CBACA12D99946D7B5E4E162EED6B045",
+    "ActionKeyword": "ssh",
+    "Name": "EasySSH",
+    "Description": "ssh with Flow-Launcher",
+    "Author": "Melv1no",
+    "Version": "1.0.0.0",
+    "Language": "csharp",
+    "Website": "https://github.com/Melv1no/Flow.Launcher.Plugin.easyssh",
+    "IcoPath": "Images\\app.png",
+    "ExecuteFileName": "Flow.Launcher.Plugin.easyssh.dll"
+}
