@@ -26,8 +26,6 @@ namespace Flow.Launcher.Plugin.easyssh
                 SubTitle = $"connect to: {query.Search}",
                 Action = c =>
                 {        
-                    string sshCommand = "ssh root@178.170.13.122";
-
                     new Process
                     {
                         StartInfo = new ProcessStartInfo
