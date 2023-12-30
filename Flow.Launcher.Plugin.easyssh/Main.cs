@@ -55,6 +55,7 @@ namespace Flow.Launcher.Plugin.easyssh
                     remove_result.Add(new Result
                     {
                         Title = "Choose the profile to remove",
+                        IcoPath = "app.png"
                     });
                     foreach (Profile profile in _profile.getProfiles())
                     {
@@ -62,7 +63,7 @@ namespace Flow.Launcher.Plugin.easyssh
                         {
                             Title = profile.Name,
                             SubTitle = profile.Command,
-                            IcoPath = "Images/app-red.png",
+                            IcoPath = "app-red.png",
                             Action = context =>
                             {
                                 _profile.removeProfile(profile.Id);
@@ -80,7 +81,7 @@ namespace Flow.Launcher.Plugin.easyssh
                         {
                             Title = profile.Name,
                             SubTitle = profile.Command,
-                            IcoPath = "Images/app-green.png",
+                            IcoPath = "app-green.png",
                             Action = context =>
                             {
                                 new Process
@@ -131,7 +132,7 @@ namespace Flow.Launcher.Plugin.easyssh
 
             easyssh_main_cmd.Title = "EasySSH";
             easyssh_main_cmd.SubTitle = $"{subtitle}";
-            easyssh_main_cmd.IcoPath = "Images/app.png";
+            easyssh_main_cmd.IcoPath = "app.png";
             return new List<Result>() { easyssh_main_cmd };
         }
     }
