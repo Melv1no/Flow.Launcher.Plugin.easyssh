@@ -1,139 +1,159 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
 using Flow.Launcher.Plugin;
 using System.Linq;
+using Flow.Launcher.Plugin.easyssh;
 
-
-namespace Flow.Launcher.Plugin.easyssh
+namespace Flow.Launcher.Plugin.EasySsh
 {
-    public class EasySSH : IPlugin
+    /// <inheritdoc />
+    public class EasySsh : IPlugin,IPluginI18n
     {
-        private PluginInitContext _context;
-        private ProfileManager _profile;
+        private PluginInitContext _pluginContext;
+        private ProfileManager _profileManager;
+        private ProcessStartInfo _sshProcessInfo;
 
+        private const string CommandAdd = "add";
+        private const string CommandRemove = "remove";
+        private const string CommandProfiles = "profiles";
+        private const string CommandDirectConnect = "d";
+
+        private const string AppIconPath = "Images\\app.png";
+        private const string AppRedIconPath = "Images\\app-red.png";
+        private const string AppGreenIconPath = "Images\\app-green.png";
+        
+        /// <inheritdoc />
         public void Init(PluginInitContext context)
         {
-            if (!Utils.IsSSHInstalled())
+            if (!Utils.IsSshInstalled())
             {
                 return;
             }
 
-            _context = context;
-            _profile = new ProfileManager(_context.CurrentPluginMetadata.PluginDirectory + "\\profiles.json");
+            _pluginContext = context;
+            _profileManager = new ProfileManager(Path.Combine(_pluginContext.CurrentPluginMetadata.PluginDirectory, "profiles.json"));
+            _sshProcessInfo = new ProcessStartInfo
+            {
+                FileName = "ssh.exe",
+                RedirectStandardInput = false,
+                RedirectStandardOutput = false,
+                RedirectStandardError = false,
+                UseShellExecute = true,
+                CreateNoWindow = false
+            };
         }
 
+        /// <inheritdoc />
+        public string GetTranslatedPluginTitle()
+        {
+            return _pluginContext.API.GetTranslation("plugin_easyssh_plugin_name");
+        }
+
+        /// <inheritdoc />
+        public string GetTranslatedPluginDescription()
+        {
+            return _pluginContext.API.GetTranslation("plugin_easyssh_plugin_description");
+        }
+        
+        /// <inheritdoc />
         public List<Result> Query(Query query)
         {
-            var easyssh_main_cmd = new Result();
-            string subtitle = "<add,remove,profiles>/<direct ssh command>";
-            String[] command = query.Search.Split(' ');
+            var easySshMainCmd = new Result();
+            string subtitle;
+            var command = query.Search.Split(' ');
 
-            switch (command[0])
+            switch (command[0].ToLower())
             {
-                case "add":
-                    if (command.Length >= 3 && !string.IsNullOrEmpty(command[1]))
+                case CommandAdd:
+                    if (command.Length >= 3 && !string.IsNullOrWhiteSpace(command[1]))
                     {
                         string sshCommand = string.Join(" ", command.Skip(2));
                         subtitle = sshCommand;
-                        easyssh_main_cmd.Action = context =>
+                        easySshMainCmd.Action = context =>
                         {
-                            _profile.addProfile(command[1], sshCommand);
+                            _profileManager.AddProfile(command[1], sshCommand);
                             return true;
                         };
                     }
                     else
                     {
-                        subtitle = "add <profile name> <ssh command>";
+                        subtitle = _pluginContext.API.GetTranslation("plugin_easyssh_subtitle_commandadd");
                     }
-
                     break;
-                case "remove":
-                    subtitle = "choose the profile you want remove";
-                    List<Result> remove_result = new List<Result>();
-                    remove_result.Add(new Result
+                case CommandRemove:
+                    var removeResult = new List<Result>
                     {
-                        Title = "Choose the profile to remove",
-                        IcoPath = "app.png"
-                    });
-                    foreach (Profile profile in _profile.getProfiles())
+                        new Result
+                        {
+                            Title = _pluginContext.API.GetTranslation("plugin_easyssh_title_commandremove"),
+                            IcoPath = AppIconPath
+                        }
+                    };
+
+                    foreach (var profile in _profileManager.GetProfiles())
                     {
-                        remove_result.Add(new Result
+                        removeResult.Add(new Result
                         {
                             Title = profile.Name,
                             SubTitle = profile.Command,
-                            IcoPath = "app-red.png",
+                            IcoPath = AppRedIconPath,
                             Action = context =>
                             {
-                                _profile.removeProfile(profile.Id);
+                                _profileManager.RemoveProfile(profile.Id);
                                 return true;
                             }
                         });
                     }
-                    return remove_result;
-                case "profiles":
-                    subtitle = "profiles";
-                    List<Result> profiles_result = new List<Result>();
-                    foreach (Profile profile in _profile.getProfiles())
+                    return removeResult;
+                case CommandProfiles:
+                    var profilesResult = new List<Result>
                     {
-                        profiles_result.Add(new Result
+                        new Result
+                        {
+                            Title = _pluginContext.API.GetTranslation("plugin_easyssh_title_commandprofiles"),
+                            IcoPath = AppIconPath
+                        }
+                    };
+
+                    foreach (var profile in _profileManager.GetProfiles())
+                    {
+                        profilesResult.Add(new Result
                         {
                             Title = profile.Name,
                             SubTitle = profile.Command,
-                            IcoPath = "app-green.png",
+                            IcoPath = AppGreenIconPath,
                             Action = context =>
                             {
-                                new Process
-                                {
-                                    StartInfo = new ProcessStartInfo
-                                    {
-                                        FileName = "ssh.exe",
-                                        Arguments = profile.Command,
-                                        RedirectStandardInput = false,
-                                        RedirectStandardOutput = false,
-                                        RedirectStandardError = false,
-                                        UseShellExecute = true,
-                                        CreateNoWindow = false
-                                    }
-                                }.Start();
+                                _sshProcessInfo.Arguments = profile.Command;
+                                new Process { StartInfo = _sshProcessInfo }.Start();
                                 return true;
                             }
                         });
                     }
-
-                    return profiles_result;
-                case "d":
-                    subtitle = $"direct connect to:{query.Search.Substring(1)}";
-                    string commands = string.Join(" ", command.Skip(1));
-                    easyssh_main_cmd.Action = context =>
+                    return profilesResult;
+                case CommandDirectConnect:
+                    subtitle = _pluginContext.API.GetTranslation("plugin_easyssh_subtitle_commanddirectconnect") + $" {query.Search[1..]}";
+                    var commands = string.Join(" ", command.Skip(1));
+                    easySshMainCmd.Action = context =>
                     {
-                        new Process
-                        {
-                            StartInfo = new ProcessStartInfo
-                            {
-                                FileName = "ssh.exe",
-                                Arguments = commands,
-                                RedirectStandardInput = false,
-                                RedirectStandardOutput = false,
-                                RedirectStandardError = false,
-                                UseShellExecute = true,
-                                CreateNoWindow = false
-                            }
-                        }.Start();
-
+                        _sshProcessInfo.Arguments = commands;
+                        new Process { StartInfo = _sshProcessInfo }.Start();
                         return true;
                     };
                     break;
                 default:
-                    subtitle = "usage: add ; remove ; profiles ; d";
+                    subtitle = _pluginContext.API.GetTranslation("plugin_easyssh_subtitle_default");
                     break;
             }
 
-            easyssh_main_cmd.Title = "EasySSH";
-            easyssh_main_cmd.SubTitle = $"{subtitle}";
-            easyssh_main_cmd.IcoPath = "app.png";
-            return new List<Result>() { easyssh_main_cmd };
+            easySshMainCmd.Title = "EasySsh";
+            easySshMainCmd.SubTitle = $"{subtitle}";
+            easySshMainCmd.IcoPath = AppIconPath;
+            return new List<Result>() { easySshMainCmd };
         }
+        
     }
 }

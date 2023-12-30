@@ -7,6 +7,6 @@
     "Version": "1.1.0.0",
     "Language": "csharp",
     "Website": "https://github.com/Melv1no/Flow.Launcher.Plugin.easyssh",
-    "IcoPath": "app.png",
+    "IcoPath": "Images\\app.png",
     "ExecuteFileName": "Flow.Launcher.Plugin.easyssh.dll"
 }
