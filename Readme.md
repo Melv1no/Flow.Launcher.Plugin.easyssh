@@ -8,4 +8,8 @@ Currently, this plugin enables you to establish an SSH connection using a single
 
 ### Usage
 
-    ssh <arguments>
+    ssh d <direct ssh args | root@127.0.0.1>
+    ssh profiles (select profile to connect)
+    ssh remove (select profile to delete)
+    ssh add <profile name | TestProfile> <ssh args | root@127.0.0.1>
+
