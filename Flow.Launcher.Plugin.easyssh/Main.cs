@@ -12,7 +12,7 @@ namespace Flow.Launcher.Plugin.EasySsh
     /// <inheritdoc />
     public class EasySsh : IPlugin,IPluginI18n
     {
-        private PluginInitContext _pluginContext;
+        public static PluginInitContext _pluginContext;
         private ProfileManager _profileManager;
         private ProcessStartInfo _sshProcessInfo;
 
@@ -24,17 +24,18 @@ namespace Flow.Launcher.Plugin.EasySsh
         private const string AppIconPath = "Images\\app.png";
         private const string AppRedIconPath = "Images\\app-red.png";
         private const string AppGreenIconPath = "Images\\app-green.png";
+
+        private string _database_path;
+
+        private bool isSshInstalled = true;
+        private bool isDatabaseCreated = true;
         
         /// <inheritdoc />
         public void Init(PluginInitContext context)
         {
-            if (!Utils.IsSshInstalled())
-            {
-                return;
-            }
-
             _pluginContext = context;
-            _profileManager = new ProfileManager(Path.Combine(_pluginContext.CurrentPluginMetadata.PluginDirectory, "profiles.json"));
+            _database_path  = Path.Combine(_pluginContext.CurrentPluginMetadata.PluginDirectory, "profiles.json");
+            _profileManager = new ProfileManager(_database_path);
             _sshProcessInfo = new ProcessStartInfo
             {
                 FileName = "ssh.exe",
@@ -44,18 +45,34 @@ namespace Flow.Launcher.Plugin.EasySsh
                 UseShellExecute = true,
                 CreateNoWindow = false
             };
+            if (!Utils.IsSshInstalled())
+            {
+                isSshInstalled = false;
+            }
+
+            if (!_profileManager.IsDatabaseCreated())
+            {
+                try
+                {
+                    File.WriteAllText(_database_path, "{}");
+                }
+                catch (IOException e)
+                {
+                    isDatabaseCreated = false;
+                }
+            }
         }
 
         /// <inheritdoc />
         public string GetTranslatedPluginTitle()
         {
-            return _pluginContext.API.GetTranslation("plugin_easyssh_plugin_name");
+            return GetTranslation("plugin_easyssh_plugin_name");
         }
 
         /// <inheritdoc />
         public string GetTranslatedPluginDescription()
         {
-            return _pluginContext.API.GetTranslation("plugin_easyssh_plugin_description");
+            return GetTranslation("plugin_easyssh_plugin_description");
         }
         
         /// <inheritdoc />
@@ -64,7 +81,14 @@ namespace Flow.Launcher.Plugin.EasySsh
             var easySshMainCmd = new Result();
             string subtitle;
             var command = query.Search.Split(' ');
-
+            if (!isSshInstalled)
+            {
+                _pluginContext.API.ShowMsg(GetTranslation("plugin_easyssh_sshnotinstalled_title"),GetTranslation("plugin_easyssh_sshnotinstalled_subtitle"), AppRedIconPath,true);
+            }   
+            if (!isDatabaseCreated)
+            {
+                _pluginContext.API.ShowMsg(GetTranslation("plugin_easyssh_databasenotcreated_title"),GetTranslation("plugin_easyssh_databasenotcreated_subtitle"), AppRedIconPath,true);
+            }
             switch (command[0].ToLower())
             {
                 case CommandAdd:
@@ -80,7 +104,7 @@ namespace Flow.Launcher.Plugin.EasySsh
                     }
                     else
                     {
-                        subtitle = _pluginContext.API.GetTranslation("plugin_easyssh_subtitle_commandadd");
+                        subtitle = GetTranslation("plugin_easyssh_subtitle_commandadd");
                     }
                     break;
                 case CommandRemove:
@@ -88,7 +112,7 @@ namespace Flow.Launcher.Plugin.EasySsh
                     {
                         new Result
                         {
-                            Title = _pluginContext.API.GetTranslation("plugin_easyssh_title_commandremove"),
+                            Title = GetTranslation("plugin_easyssh_title_commandremove"),
                             IcoPath = AppIconPath
                         }
                     };
@@ -113,7 +137,7 @@ namespace Flow.Launcher.Plugin.EasySsh
                     {
                         new Result
                         {
-                            Title = _pluginContext.API.GetTranslation("plugin_easyssh_title_commandprofiles"),
+                            Title = GetTranslation("plugin_easyssh_title_commandprofiles"),
                             IcoPath = AppIconPath
                         }
                     };
@@ -135,7 +159,7 @@ namespace Flow.Launcher.Plugin.EasySsh
                     }
                     return profilesResult;
                 case CommandDirectConnect:
-                    subtitle = _pluginContext.API.GetTranslation("plugin_easyssh_subtitle_commanddirectconnect") + $" {query.Search[1..]}";
+                    subtitle = GetTranslation("plugin_easyssh_subtitle_commanddirectconnect") + $" {query.Search[1..]}";
                     var commands = string.Join(" ", command.Skip(1));
                     easySshMainCmd.Action = context =>
                     {
@@ -145,7 +169,7 @@ namespace Flow.Launcher.Plugin.EasySsh
                     };
                     break;
                 default:
-                    subtitle = _pluginContext.API.GetTranslation("plugin_easyssh_subtitle_default");
+                    subtitle = GetTranslation("plugin_easyssh_subtitle_default");
                     break;
             }
 
@@ -154,6 +178,11 @@ namespace Flow.Launcher.Plugin.EasySsh
             easySshMainCmd.IcoPath = AppIconPath;
             return new List<Result>() { easySshMainCmd };
         }
-        
+
+        /// <returns><c>string</c>return the translation for a key.</returns>
+        public static string GetTranslation(string key)
+        {
+            return _pluginContext.API.GetTranslation(key);
+        }   
     }
 }

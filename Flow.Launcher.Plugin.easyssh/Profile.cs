@@ -1,7 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Flow.Launcher.Plugin.EasySsh;
 using Newtonsoft.Json.Linq;
 
 /// <summary>
@@ -62,7 +62,13 @@ public class ProfileManager
     {
         if (!IsDatabaseCreated())
         {
-            File.WriteAllText(_path, "{}");
+            try
+            {
+                File.WriteAllText(_path, "{}");
+            }
+            catch (IOException e)
+            {
+            }
         }
     }
 
@@ -70,7 +76,7 @@ public class ProfileManager
     /// Checks if the user profiles database file exists.
     /// </summary>
     /// <returns><c>true</c> if the database file exists; otherwise, <c>false</c>.</returns>
-    private bool IsDatabaseCreated()
+    public bool IsDatabaseCreated()
     {
         return File.Exists(_path);
     }

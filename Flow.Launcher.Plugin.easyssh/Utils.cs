@@ -33,5 +33,6 @@ namespace Flow.Launcher.Plugin.easyssh
             
             return !string.IsNullOrEmpty(output) && string.IsNullOrEmpty(error);
         }
+        
     }
 }

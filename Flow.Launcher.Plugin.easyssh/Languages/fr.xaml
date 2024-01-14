@@ -10,5 +10,10 @@
     <system:String x:Key="plugin_easyssh_title_commandprofiles">Quel profile lancer ?</system:String>
     <system:String x:Key="plugin_easyssh_subtitle_commanddirectconnect">se connecter à:</system:String>
     <system:String x:Key="plugin_easyssh_subtitle_default">utilisation: add ; remove ; profiles ; d</system:String>
+    
+    <system:String x:Key="plugin_easyssh_sshnotinstalled_title">EasySSH</system:String>
+    <system:String x:Key="plugin_easyssh_sshnotinstalled_subtitle">Vous devez installer OpenSSH pour utiliser le plugin.</system:String>
+    <system:String x:Key="plugin_easyssh_databasenotcreated_title">EasySSH</system:String>
+    <system:String x:Key="plugin_easyssh_databasenotcreated_subtitle">Impossible de crée la base de donnée, ouvrer une issue sur github.</system:String>
 
 </ResourceDictionary>

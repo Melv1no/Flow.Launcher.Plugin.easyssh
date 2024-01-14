@@ -11,4 +11,8 @@
     <system:String x:Key="plugin_easyssh_subtitle_commanddirectconnect">direct connect to:</system:String>
     <system:String x:Key="plugin_easyssh_subtitle_default">usage: add ; remove ; profiles ; d</system:String>
 
+    <system:String x:Key="plugin_easyssh_sshnotinstalled_title">EasySSH</system:String>
+    <system:String x:Key="plugin_easyssh_sshnotinstalled_subtitle">You need to download OpenSSH to use EasySSH plugin.</system:String>
+    <system:String x:Key="plugin_easyssh_databasenotcreated_title">EasySSH</system:String>
+    <system:String x:Key="plugin_easyssh_databasenotcreated_subtitle">Fail to create the database for our profiles, please open issue on github.</system:String>
 </ResourceDictionary>
