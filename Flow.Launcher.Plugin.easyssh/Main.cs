@@ -34,7 +34,7 @@ namespace Flow.Launcher.Plugin.EasySsh
         public void Init(PluginInitContext context)
         {
             _pluginContext = context;
-            _database_path  = Path.Combine(_pluginContext.CurrentPluginMetadata.PluginDirectory, "profiles.json");
+            _database_path  = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh\\profiles.json");
             _profileManager = new ProfileManager(_database_path);
             _sshProcessInfo = new ProcessStartInfo
             {
