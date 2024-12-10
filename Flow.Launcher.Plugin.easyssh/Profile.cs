@@ -53,7 +53,17 @@ public class ProfileManager
     public ProfileManager(string path)
     {
         _path = path;
-
+        if (File.Exists(path))
+        {
+            try
+            {
+                MigrateToNewFormat(path);
+            }
+            catch
+            {
+                
+            }
+        }
         InitializeDatabase();
         _file = File.ReadAllText(_path);
     }
@@ -64,7 +74,7 @@ public class ProfileManager
         {
             try
             {
-                File.WriteAllText(_path, "{}");
+                File.WriteAllText(_path, "{\"version\": \"1.0\", \"customShells\": {}, \"profiles\": {}}");
             }
             catch (IOException e)
             {
@@ -89,8 +99,9 @@ public class ProfileManager
     {
         var profiles = new List<Profile>();
         var jsonObject = JObject.Parse(_file);
+        var profilesJson = jsonObject["profiles"] as JObject;
 
-        foreach (var (key, value) in jsonObject)
+        foreach (var (key, value) in profilesJson)
         {
             if (value is JObject data)
                 profiles.Add(new Profile(int.Parse(key), data["Name"]?.ToString(), data["Command"]?.ToString()));
@@ -107,12 +118,13 @@ public class ProfileManager
     public void AddProfile(string name, string command)
     {
         var jsonObject = JObject.Parse(_file);
+        var profilesJson = jsonObject["profiles"] as JObject;
 
-        var lastId = jsonObject.Properties().Any() ? int.Parse(jsonObject.Properties().Last().Name) : 0;
+        var lastId = profilesJson.Properties().Any() ? int.Parse(profilesJson.Properties().Last().Name) : 0;
         var newId = lastId + 1;
 
         var newProfile = new Profile(newId, name, command);
-        jsonObject[newId.ToString()] = JObject.FromObject(newProfile);
+        profilesJson[newId.ToString()] = JObject.FromObject(newProfile);
 
         _file = jsonObject.ToString();
         File.WriteAllText(_path, _file);
@@ -125,12 +137,110 @@ public class ProfileManager
     public void RemoveProfile(int id)
     {
         var jsonObject = JObject.Parse(_file);
+        var profilesJson = jsonObject["profiles"] as JObject;
 
-        if (jsonObject.ContainsKey(id.ToString()))
+        if (profilesJson.ContainsKey(id.ToString()))
         {
-            jsonObject.Remove(id.ToString());
+            profilesJson.Remove(id.ToString());
             _file = jsonObject.ToString();
             File.WriteAllText(_path, _file);
         }
     }
+
+    /// <summary>
+    /// Retrieves the custom shells stored in the JSON file.
+    /// </summary>
+    /// <returns>A dictionary of custom shell key-value pairs.</returns>
+    public Dictionary<string, string> GetCustomShells()
+    {
+        var jsonObject = JObject.Parse(_file);
+        var customShellsJson = jsonObject["customShells"] as JObject;
+        var customShells = new Dictionary<string, string>();
+
+        foreach (var (key, value) in customShellsJson)
+        {
+            customShells[key] = value.ToString();
+        }
+
+        return customShells;
+    }
+
+    /// <summary>
+    /// Adds a new custom shell to the JSON file.
+    /// </summary>
+    /// <param name="key">The key for the custom shell.</param>
+    /// <param name="command">The command associated with the custom shell.</param>
+    public void AddCustomShell(string key, string command)
+    {
+        var jsonObject = JObject.Parse(_file);
+        var customShellsJson = jsonObject["customShells"] as JObject;
+
+        customShellsJson[key] = command;
+
+        _file = jsonObject.ToString();
+        File.WriteAllText(_path, _file);
+    }
+
+    /// <summary>
+    /// Retrieves the version number of the JSON file.
+    /// </summary>
+    /// <returns>The version number.</returns>
+    public string GetVersion()
+    {
+        var jsonObject = JObject.Parse(_file);
+        return jsonObject["version"]?.ToString();
+    }
+
+    /// <summary>
+    /// Updates the version number in the JSON file.
+    /// </summary>
+    /// <param name="version">The new version number.</param>
+    public void SetVersion(string version)
+    {
+        var jsonObject = JObject.Parse(_file);
+        jsonObject["version"] = version;
+
+        _file = jsonObject.ToString();
+        File.WriteAllText(_path, _file);
+    }
+    public void MigrateToNewFormat(string path)
+    {
+        var oldFileContent = File.ReadAllText(_path);
+        File.WriteAllText(path+".old",oldFileContent);
+        var oldJsonObject = JObject.Parse(oldFileContent);
+        
+        var newJsonObject = new JObject();
+    
+        newJsonObject["version"] = "1.0";  
+    
+        var customShells = new JObject();
+        newJsonObject["customShells"] = customShells;
+
+        var profiles = new JObject();
+
+        foreach (var (key, value) in oldJsonObject)
+        {
+            if (value is JObject data)
+            {
+                var id = int.Parse(key);
+                var name = data["Name"]?.ToString();
+                var command = data["Command"]?.ToString();
+
+                var profile = new JObject
+                {
+                    { "Id", id },
+                    { "Name", name },
+                    { "Command", command }
+                };
+            
+                profiles[key] = profile;
+            }
+        }
+
+        newJsonObject["profiles"] = profiles;
+
+        _file = newJsonObject.ToString();
+        File.WriteAllText(_path, _file);
+    }
+
 }

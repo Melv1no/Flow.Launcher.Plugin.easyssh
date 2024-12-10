@@ -1,4 +1,7 @@
 ﻿using System.Diagnostics;
+using System.Collections.Generic;
+using System.IO;
+using System;
 
 namespace Flow.Launcher.Plugin.easyssh
 {
@@ -33,6 +36,5 @@ namespace Flow.Launcher.Plugin.easyssh
             
             return !string.IsNullOrEmpty(output) && string.IsNullOrEmpty(error);
         }
-        
     }
 }

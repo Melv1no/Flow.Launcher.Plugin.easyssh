@@ -20,12 +20,15 @@ namespace Flow.Launcher.Plugin.EasySsh
         private const string CommandRemove = "remove";
         private const string CommandProfiles = "profiles";
         private const string CommandDirectConnect = "d";
+        private const string CommandCustomShell = "shell";
 
         private const string AppIconPath = "Images\\app.png";
         private const string AppRedIconPath = "Images\\app-red.png";
         private const string AppGreenIconPath = "Images\\app-green.png";
 
+        private Dictionary<string, string> _sshClientsDetected;
         private string _database_path;
+        private string _sshClient = "cmd.exe";
 
         private bool isSshInstalled = true;
         private bool isDatabaseCreated = true;
@@ -38,7 +41,7 @@ namespace Flow.Launcher.Plugin.EasySsh
             _profileManager = new ProfileManager(_database_path);
             _sshProcessInfo = new ProcessStartInfo
             {
-                FileName = "ssh.exe",
+                FileName = $"{_sshClient}",
                 RedirectStandardInput = false,
                 RedirectStandardOutput = false,
                 RedirectStandardError = false,
@@ -61,6 +64,9 @@ namespace Flow.Launcher.Plugin.EasySsh
                     isDatabaseCreated = false;
                 }
             }
+
+            _sshClientsDetected = _profileManager.GetCustomShells();
+
         }
 
         /// <inheritdoc />
@@ -168,13 +174,65 @@ namespace Flow.Launcher.Plugin.EasySsh
                         return true;
                     };
                     break;
+                case CommandCustomShell:
+                    var shellResult = new List<Result>
+                    {
+                        new Result
+                        {
+                            Title = GetTranslation("plugin_easyssh_title_commandcustomshell"),
+                            IcoPath = AppIconPath
+                        }
+                    };
+                    
+                    if (command.Length >= 2 && !string.IsNullOrWhiteSpace(command[1]))
+                    {
+                        string args = string.Join(" ", command.Skip(2));
+                        
+                        subtitle = args;
+                        string[] splitted_arg = args.Split(' ');
+                        easySshMainCmd.Action = context =>
+                        {
+                            string remainingArgs = string.Join(" ", splitted_arg[1..]);
+    
+                            _sshClientsDetected.Add(splitted_arg[0], remainingArgs);
+                            _profileManager.AddCustomShell(splitted_arg[0], remainingArgs);
+                            return true;
+                        };
+                    }
+                    else
+                    {
+                        foreach (var client in _sshClientsDetected)
+                        {
+                            shellResult.Add(new Result
+                            {
+                                Title = client.Key,
+                                SubTitle = client.Value,
+                                IcoPath = AppGreenIconPath,
+                                Action = context =>
+                                {
+                                    _sshClient = client.Value;
+                                    _sshProcessInfo.FileName = _sshClient;
+                                    return true;
+                                }
+                            });
+                        }
+                        shellResult.Insert(0,new Result
+                        {
+                            Title = "Custom Shell",
+                            SubTitle = "type: add <name> <path>",
+                            IcoPath = AppIconPath,
+                            Action = context => { return true; }
+                        });
+                        return shellResult;
+                    }
+                    break;
                 default:
                     subtitle = GetTranslation("plugin_easyssh_subtitle_default");
                     break;
             }
 
             easySshMainCmd.Title = "EasySsh";
-            easySshMainCmd.SubTitle = $"{subtitle}";
+            easySshMainCmd.SubTitle = subtitle;
             easySshMainCmd.IcoPath = AppIconPath;
             return new List<Result>() { easySshMainCmd };
         }
