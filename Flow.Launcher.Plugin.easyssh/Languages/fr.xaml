@@ -14,7 +14,7 @@
     <system:String x:Key="plugin_easyssh_databasenotcreated_subtitle">Impossible de créer la base des profils.</system:String>
 
     <!-- Par défaut / aide -->
-    <system:String x:Key="plugin_easyssh_subtitle_default">Tapez : add &lt;nom&gt; ssh user@host • remove • profiles • d &lt;commande ssh...&gt;</system:String>
+    <system:String x:Key="plugin_easyssh_subtitle_default">Tapez : add ; remove ; profiles|p ; direct|d ; shell ; docs</system:String>
 
     <!-- AJOUT -->
     <system:String x:Key="plugin_easyssh_title_commandadd">Ajouter un profil</system:String>
@@ -30,5 +30,13 @@
 
     <!-- CONNEXION DIRECTE -->
     <system:String x:Key="plugin_easyssh_subtitle_commanddirectconnect">Connexion directe :</system:String>
+
+    <system:String x:Key="plugin_easyssh_title_commandshell_add">Ajouter un profil shell</system:String>
+    <system:String x:Key="plugin_easyssh_subtitle_commandshell_add_usage">Usage : shell add "&quot;C:\Chemin\MonClientSsh.exe&quot;" "&quot;--port {{port}} --host {{host}} --user {{user}}&quot;"</system:String>
+
+    <system:String x:Key="plugin_easyssh_title_commandshell_remove">Supprimer un profil shell</system:String>
+    <system:String x:Key="plugin_easyssh_subtitle_commandshell_remove">Sélectionnez un profil shell à supprimer.</system:String>
+
+    <system:String x:Key="plugin_easyssh_subtitle_commandshell_help">Utilisez : shell add "exe" "template"  •  shell remove</system:String>
 
 </ResourceDictionary>

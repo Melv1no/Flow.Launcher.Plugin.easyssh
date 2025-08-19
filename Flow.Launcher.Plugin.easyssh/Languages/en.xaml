@@ -14,7 +14,7 @@
     <system:String x:Key="plugin_easyssh_databasenotcreated_subtitle">Profiles database could not be created.</system:String>
 
     <!-- Default / help -->
-    <system:String x:Key="plugin_easyssh_subtitle_default">Type: add &lt;name&gt; ssh user@host • remove • profiles • d &lt;ssh command...&gt;</system:String>
+    <system:String x:Key="plugin_easyssh_subtitle_default">Type: add ; remove ; profiles|p ; direct|d ; shell ; docs</system:String>
 
     <!-- ADD -->
     <system:String x:Key="plugin_easyssh_title_commandadd">Add profile</system:String>
@@ -30,5 +30,13 @@
 
     <!-- DIRECT CONNECT -->
     <system:String x:Key="plugin_easyssh_subtitle_commanddirectconnect">Direct connect:</system:String>
+    <system:String x:Key="plugin_easyssh_title_commandshell_add">Add shell profile</system:String>
+    
+    <system:String x:Key="plugin_easyssh_subtitle_commandshell_add_usage">Usage: shell add "&quot;C:\Path\MySshClient.exe&quot;" "&quot;--port {{port}} --host {{host}} --user {{user}}&quot;"</system:String>
+
+    <system:String x:Key="plugin_easyssh_title_commandshell_remove">Remove shell profile</system:String>
+    <system:String x:Key="plugin_easyssh_subtitle_commandshell_remove">Select a shell profile to remove.</system:String>
+
+    <system:String x:Key="plugin_easyssh_subtitle_commandshell_help">Use: shell add "exe" "template"  •  shell remove</system:String>
 
 </ResourceDictionary>

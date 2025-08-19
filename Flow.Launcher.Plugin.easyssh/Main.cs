@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 namespace Flow.Launcher.Plugin.EasySsh
 {
@@ -18,14 +19,15 @@ namespace Flow.Launcher.Plugin.EasySsh
         private const string CommandRemove = "remove";
         private const string CommandProfiles = "profiles";
         private const string CommandDirectConnect = "d";
-        private const string CommandCustomShell = "shell"; // réservé si tu l'actives plus tard
+        private const string CommandCustomShell = "shell";
+        private const string CommandDocs = "docs";
 
         private const string AppIconPath = "Images\\app.png";
         private const string AppRedIconPath = "Images\\app-red.png";
         private const string AppGreenIconPath = "Images\\app-green.png";
 
         private string _databasePath;
-        private string _sshClient = "cmd.exe"; // garde ta valeur
+        private string _sshClient = "cmd.exe";
 
         private bool _isSshInstalled = true;
         private bool _isDatabaseCreated = true;
@@ -42,7 +44,6 @@ namespace Flow.Launcher.Plugin.EasySsh
 
             _profileManager = new ProfileManager(_databasePath);
 
-            // états de santé
             _isSshInstalled = Utils.IsSshInstalled();
             _isDatabaseCreated = File.Exists(_databasePath);
         }
@@ -56,12 +57,10 @@ namespace Flow.Launcher.Plugin.EasySsh
         /// <inheritdoc />
         public List<Result> Query(Query query)
         {
-            // Prépare un résultat par défaut
             var results = new List<Result>();
             var raw = query?.Search ?? string.Empty;
             var parts = raw.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-            // Messages d’état (non bloquants, mais visibles)
             if (!_isSshInstalled)
             {
                 _pluginContext.API.ShowMsg(
@@ -79,7 +78,6 @@ namespace Flow.Launcher.Plugin.EasySsh
                 );
             }
 
-            // Si aucune commande saisie → hint générique
             if (parts.Length == 0)
             {
                 results.Add(new Result
@@ -95,6 +93,35 @@ namespace Flow.Launcher.Plugin.EasySsh
 
             switch (verb)
             {
+
+                case CommandDocs:
+                    {
+                        results.Add(new Result
+                        {
+                            Title = "EasySsh Documentation",
+                            SubTitle = "Open the project page on GitHub",
+                            IcoPath = AppIconPath,
+                            Action = _ =>
+                            {
+                                try
+                                {
+                                    Process.Start(new ProcessStartInfo
+                                    {
+                                        FileName = "https://github.com/Melv1no/Flow.Launcher.Plugin.easyssh",
+                                        UseShellExecute = true
+                                    });
+                                }
+                                catch (Exception ex)
+                                {
+                                    _pluginContext.API.ShowMsg("EasySsh", $"Failed to open docs: {ex.Message}", AppRedIconPath);
+                                }
+                                return true;
+                            }
+                        });
+                        return results;
+                    }
+
+
                 // ----------------- ADD -----------------
                 case CommandAdd:
                     {
@@ -157,7 +184,7 @@ namespace Flow.Launcher.Plugin.EasySsh
                         return remove;
                     }
 
-                // ----------------- PROFILES (list & run) -----------------
+                // ----------------- PROFILES -----------------
                 case CommandProfiles:
                     {
                         var list = new List<Result>
@@ -198,7 +225,7 @@ namespace Flow.Launcher.Plugin.EasySsh
                         return list;
                     }
 
-                // ----------------- DIRECT (d ...) -----------------
+                // ----------------- DIRECT -----------------
                 case CommandDirectConnect:
                     {
                         var cmd = string.Join(' ', parts.Skip(1)).Trim();
@@ -237,6 +264,90 @@ namespace Flow.Launcher.Plugin.EasySsh
                         return results;
                     }
 
+                // ----------------- SHELL -----------------
+                case CommandCustomShell:
+                    {
+                        if (parts.Length >= 2 && parts[1].Equals("add", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var after = raw.Substring(raw.IndexOf("shell", StringComparison.OrdinalIgnoreCase) + "shell".Length).TrimStart();
+                            after = after.Substring(after.IndexOf("add", StringComparison.OrdinalIgnoreCase) + "add".Length).TrimStart();
+
+                            var parsed = ParseTwoQuotedSegments(after);
+                            if (parsed == null)
+                            {
+                                results.Add(new Result
+                                {
+                                    Title = GetTranslation("plugin_easyssh_title_commandshell_add"),
+                                    SubTitle = GetTranslation("plugin_easyssh_subtitle_commandshell_add_usage"),
+                                    IcoPath = AppIconPath
+                                });
+                                return results;
+                            }
+
+                            var (exe, template) = parsed.Value;
+                            results.Add(new Result
+                            {
+                                Title = GetTranslation("plugin_easyssh_title_commandshell_add"),
+                                SubTitle = $"{exe}  |  {template}",
+                                IcoPath = AppGreenIconPath,
+                                Action = _ =>
+                                {
+                                    _profileManager.UserData.CustomShell[exe] = template;
+                                    return true;
+                                }
+                            });
+                            return results;
+                        }
+
+                        if (parts.Length >= 2 && parts[1].Equals("remove", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var remove = new List<Result>
+                        {
+                            new Result
+                            {
+                                Title = GetTranslation("plugin_easyssh_title_commandshell_remove"),
+                                SubTitle = GetTranslation("plugin_easyssh_subtitle_commandshell_remove"),
+                                IcoPath = AppIconPath
+                            }
+                        };
+
+                            foreach (var kv in _profileManager.UserData.CustomShell.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
+                            {
+                                var exe = kv.Key; var templ = kv.Value;
+                                remove.Add(new Result
+                                {
+                                    Title = exe,
+                                    SubTitle = templ,
+                                    IcoPath = AppRedIconPath,
+                                    Action = _ =>
+                                    {
+                                        _profileManager.UserData.CustomShell.Remove(exe);
+                                        return true;
+                                    }
+                                });
+                            }
+                            return remove;
+                        }
+
+                        results.Add(new Result
+                        {
+                            Title = "shell",
+                            SubTitle = GetTranslation("plugin_easyssh_subtitle_commandshell_help"),
+                            IcoPath = AppIconPath
+                        });
+
+                        foreach (var kv in _profileManager.UserData.CustomShell.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
+                        {
+                            results.Add(new Result
+                            {
+                                Title = kv.Key,
+                                SubTitle = kv.Value,
+                                IcoPath = AppGreenIconPath
+                            });
+                        }
+                        return results;
+                    }
+
                 // ----------------- DEFAULT -----------------
                 default:
                     {
@@ -252,5 +363,41 @@ namespace Flow.Launcher.Plugin.EasySsh
         }
 
         public static string GetTranslation(string key) => _pluginContext.API.GetTranslation(key);
+
+        private static (string exe, string template)? ParseTwoQuotedSegments(string s)
+        {
+            int i = 0;
+            SkipWs();
+            if (!TakeQuote(out var first)) return null;
+            SkipWs();
+            if (!TakeQuote(out var second)) return null;
+            return (first, second);
+
+            void SkipWs()
+            {
+                while (i < s.Length && char.IsWhiteSpace(s[i])) i++;
+            }
+
+            bool TakeQuote(out string value)
+            {
+                value = string.Empty;
+                if (i >= s.Length || s[i] != '\"') return false;
+                i++;
+                var sb = new StringBuilder();
+                while (i < s.Length)
+                {
+                    var c = s[i++];
+                    if (c == '\\' && i < s.Length)
+                    {
+                        var n = s[i++];
+                        sb.Append(n switch { '\"' => '\"', '\\' => '\\', _ => n });
+                        continue;
+                    }
+                    if (c == '\"') { value = sb.ToString(); return true; }
+                    sb.Append(c);
+                }
+                return false;
+            }
+        }
     }
 }
