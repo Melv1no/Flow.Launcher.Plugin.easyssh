@@ -1,246 +1,177 @@
-﻿using System.Collections.Generic;
+﻿using Newtonsoft.Json;
+using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using Flow.Launcher.Plugin.EasySsh;
-using Newtonsoft.Json.Linq;
 
 /// <summary>
-/// Represents a user profile with a unique identifier, name, and associated command.
+/// Holds plugin user data persisted on disk.
+/// Contains the plugin version and two key/value stores:
+/// - EntriesLists: main entries (serialized)
+/// - CustomShellLists: custom shell mappings (serialized)
+/// Exposes auto-saving wrappers (not serialized) via <see cref="Entries"/> and <see cref="CustomShell"/>.
 /// </summary>
-public class Profile
+public class UserData
 {
     /// <summary>
-    /// Gets or sets the unique identifier of the profile.
+    /// Semantic version of the data format used by the plugin.
     /// </summary>
-    public int Id { get; set; }
+    public string PluginVersion { get; set; } = "1.0";
 
     /// <summary>
-    /// Gets or sets the name associated with the profile.
+    /// Backing store for entries (serialized). Kept private to enforce autosave via <see cref="Entries"/>.
     /// </summary>
-    public string Name { get; set; }
+    [JsonProperty]
+    private Dictionary<string, string> EntriesLists { get; set; } = new();
 
     /// <summary>
-    /// Gets or sets the command associated with the profile.
+    /// Auto-saving facade over <see cref="EntriesLists"/> (not serialized).
+    /// Any mutation triggers the provided onChanged callback.
     /// </summary>
-    public string Command { get; set; }
+    [JsonIgnore]
+    public AutoSaveDictionary<string, string> Entries { get; private set; }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="Profile"/> class.
+    /// Backing store for custom shells (serialized). Kept private to enforce autosave via <see cref="CustomShell"/>.
     /// </summary>
-    /// <param name="id">The unique identifier of the profile.</param>
-    /// <param name="name">The name associated with the profile.</param>
-    /// <param name="command">The command associated with the profile.</param>
-    public Profile(int id, string name, string command)
+    [JsonProperty]
+    private Dictionary<string, string> CustomShellLists { get; set; } = new();
+
+    /// <summary>
+    /// Auto-saving facade over <see cref="CustomShellLists"/> (not serialized).
+    /// Any mutation triggers the provided onChanged callback.
+    /// </summary>
+    [JsonIgnore]
+    public AutoSaveDictionary<string, string> CustomShell { get; private set; }
+
+    /// <summary>
+    /// Binds the auto-save callback to both facades.
+    /// Call this after construction and after deserialization.
+    /// </summary>
+    /// <param name="onChanged">Callback invoked on any mutation.</param>
+    public void Attach(Action onChanged)
     {
-        Id = id;
-        Name = name;
-        Command = command;
+        // ensure lists are not null (safe guard if deserialized from older/minimal files)
+        EntriesLists ??= new Dictionary<string, string>();
+        CustomShellLists ??= new Dictionary<string, string>();
+
+        Entries = new AutoSaveDictionary<string, string>(EntriesLists, onChanged);
+        CustomShell = new AutoSaveDictionary<string, string>(CustomShellLists, onChanged);
     }
 }
 
 /// <summary>
-/// Manages user profiles stored in a JSON file.
+/// Minimal auto-saving dictionary wrapper that forwards to an inner dictionary
+/// and invokes a change callback on any mutating operation.
+/// This type is NOT serialized; only the inner dictionary is.
+/// </summary>
+public sealed class AutoSaveDictionary<TKey, TValue> : IDictionary<TKey, TValue>
+{
+    private static readonly Action Noop = () => { };
+
+    private readonly IDictionary<TKey, TValue> _inner;
+    private Action _onChanged;
+
+    /// <summary>
+    /// Creates a facade over an existing dictionary.
+    /// </summary>
+    /// <param name="inner">The target dictionary to mutate.</param>
+    /// <param name="onChanged">Callback invoked after each mutation.</param>
+    public AutoSaveDictionary(IDictionary<TKey, TValue> inner, Action onChanged)
+    {
+        _inner = inner ?? throw new ArgumentNullException(nameof(inner));
+        _onChanged = onChanged ?? Noop;
+    }
+
+    /// <summary>
+    /// Replaces the change callback at runtime (e.g., after reloading configuration).
+    /// </summary>
+    /// <param name="onChanged">New callback to use (no-op if null).</param>
+    public void SetCallback(Action onChanged) => _onChanged = onChanged ?? Noop;
+
+    public TValue this[TKey key]
+    {
+        get => _inner[key];
+        set { _inner[key] = value; _onChanged(); }
+    }
+
+    public ICollection<TKey> Keys => _inner.Keys;
+    public ICollection<TValue> Values => _inner.Values;
+    public int Count => _inner.Count;
+    public bool IsReadOnly => _inner.IsReadOnly;
+
+    public void Add(TKey key, TValue value) { _inner.Add(key, value); _onChanged(); }
+    public bool ContainsKey(TKey key) => _inner.ContainsKey(key);
+    public bool Remove(TKey key) { var ok = _inner.Remove(key); if (ok) _onChanged(); return ok; }
+    public bool TryGetValue(TKey key, out TValue value) => _inner.TryGetValue(key, out value);
+
+    public void Add(KeyValuePair<TKey, TValue> item) { _inner.Add(item); _onChanged(); }
+    public void Clear() { _inner.Clear(); _onChanged(); }
+    public bool Contains(KeyValuePair<TKey, TValue> item) => _inner.Contains(item);
+    public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex) => _inner.CopyTo(array, arrayIndex);
+    public bool Remove(KeyValuePair<TKey, TValue> item) { var ok = _inner.Remove(item); if (ok) _onChanged(); return ok; }
+    public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator() => _inner.GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => _inner.GetEnumerator();
+}
+
+/// <summary>
+/// Coordinates reading/writing of <see cref="UserData"/> to a JSON file.
+/// Exposes an instance whose dictionaries auto-save on mutation.
 /// </summary>
 public class ProfileManager
 {
     private readonly string _path;
-    private string _file;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ProfileManager"/> class.
+    /// Current in-memory user data. Use <see cref="UserData.Entries"/> and <see cref="UserData.CustomShell"/>
+    /// to get auto-saving behavior on mutation.
     /// </summary>
-    /// <param name="path">The file path to manage user profiles.</param>
+    public UserData UserData { get; private set; }
+
+    /// <summary>
+    /// Creates a manager bound to a JSON file at <paramref name="path"/>.
+    /// File is created if missing; otherwise it is loaded.
+    /// </summary>
     public ProfileManager(string path)
     {
         _path = path;
-        if (File.Exists(path))
-        {
-            try
-            {
-                MigrateToNewFormat(path);
-            }
-            catch
-            {
-                
-            }
-        }
-        InitializeDatabase();
-        _file = File.ReadAllText(_path);
-    }
 
-    private void InitializeDatabase()
-    {
-        if (!IsDatabaseCreated())
+        if (!File.Exists(_path))
         {
-            try
-            {
-                File.WriteAllText(_path, "{\"version\": \"1.0\", \"customShells\": {}, \"profiles\": {}}");
-            }
-            catch (IOException e)
-            {
-            }
+            UserData = new UserData();
+            UserData.Attach(SaveConfiguration);
+            SaveConfiguration();
+        }
+        else
+        {
+            LoadConfiguration();
         }
     }
 
     /// <summary>
-    /// Checks if the user profiles database file exists.
+    /// Persists <see cref="UserData"/> to disk (atomic write).
     /// </summary>
-    /// <returns><c>true</c> if the database file exists; otherwise, <c>false</c>.</returns>
-    public bool IsDatabaseCreated()
+    public void SaveConfiguration()
     {
-        return File.Exists(_path);
+        var json = JsonConvert.SerializeObject(UserData, Formatting.Indented);
+
+        // Atomic write to avoid partial writes: write to temp then replace.
+        var tmp = _path + ".tmp";
+        File.WriteAllText(tmp, json);
+        File.Copy(tmp, _path, overwrite: true);
+        File.Delete(tmp);
     }
 
     /// <summary>
-    /// Retrieves all user profiles from the JSON file.
+    /// Loads <see cref="UserData"/> from disk and rebinds auto-save facades.
     /// </summary>
-    /// <returns>A list of <see cref="Profile"/> objects.</returns>
-    public List<Profile> GetProfiles()
+    public void LoadConfiguration()
     {
-        var profiles = new List<Profile>();
-        var jsonObject = JObject.Parse(_file);
-        var profilesJson = jsonObject["profiles"] as JObject;
+        var json = File.ReadAllText(_path);
+        UserData = JsonConvert.DeserializeObject<UserData>(json) ?? new UserData();
 
-        foreach (var (key, value) in profilesJson)
-        {
-            if (value is JObject data)
-                profiles.Add(new Profile(int.Parse(key), data["Name"]?.ToString(), data["Command"]?.ToString()));
-        }
-
-        return profiles;
+        // Ensure non-null inner stores (in case of minimal/legacy files)
+        // then rebind auto-save wrappers to call SaveConfiguration on change.
+        UserData.Attach(SaveConfiguration);
     }
-
-    /// <summary>
-    /// Adds a new user profile to the JSON file.
-    /// </summary>
-    /// <param name="name">The name associated with the new profile.</param>
-    /// <param name="command">The command associated with the new profile.</param>
-    public void AddProfile(string name, string command)
-    {
-        var jsonObject = JObject.Parse(_file);
-        var profilesJson = jsonObject["profiles"] as JObject;
-
-        var lastId = profilesJson.Properties().Any() ? int.Parse(profilesJson.Properties().Last().Name) : 0;
-        var newId = lastId + 1;
-
-        var newProfile = new Profile(newId, name, command);
-        profilesJson[newId.ToString()] = JObject.FromObject(newProfile);
-
-        _file = jsonObject.ToString();
-        File.WriteAllText(_path, _file);
-    }
-
-    /// <summary>
-    /// Removes a user profile by its identifier from the JSON file.
-    /// </summary>
-    /// <param name="id">The unique identifier of the profile to be removed.</param>
-    public void RemoveProfile(int id)
-    {
-        var jsonObject = JObject.Parse(_file);
-        var profilesJson = jsonObject["profiles"] as JObject;
-
-        if (profilesJson.ContainsKey(id.ToString()))
-        {
-            profilesJson.Remove(id.ToString());
-            _file = jsonObject.ToString();
-            File.WriteAllText(_path, _file);
-        }
-    }
-
-    /// <summary>
-    /// Retrieves the custom shells stored in the JSON file.
-    /// </summary>
-    /// <returns>A dictionary of custom shell key-value pairs.</returns>
-    public Dictionary<string, string> GetCustomShells()
-    {
-        var jsonObject = JObject.Parse(_file);
-        var customShellsJson = jsonObject["customShells"] as JObject;
-        var customShells = new Dictionary<string, string>();
-
-        foreach (var (key, value) in customShellsJson)
-        {
-            customShells[key] = value.ToString();
-        }
-
-        return customShells;
-    }
-
-    /// <summary>
-    /// Adds a new custom shell to the JSON file.
-    /// </summary>
-    /// <param name="key">The key for the custom shell.</param>
-    /// <param name="command">The command associated with the custom shell.</param>
-    public void AddCustomShell(string key, string command)
-    {
-        var jsonObject = JObject.Parse(_file);
-        var customShellsJson = jsonObject["customShells"] as JObject;
-
-        customShellsJson[key] = command;
-
-        _file = jsonObject.ToString();
-        File.WriteAllText(_path, _file);
-    }
-
-    /// <summary>
-    /// Retrieves the version number of the JSON file.
-    /// </summary>
-    /// <returns>The version number.</returns>
-    public string GetVersion()
-    {
-        var jsonObject = JObject.Parse(_file);
-        return jsonObject["version"]?.ToString();
-    }
-
-    /// <summary>
-    /// Updates the version number in the JSON file.
-    /// </summary>
-    /// <param name="version">The new version number.</param>
-    public void SetVersion(string version)
-    {
-        var jsonObject = JObject.Parse(_file);
-        jsonObject["version"] = version;
-
-        _file = jsonObject.ToString();
-        File.WriteAllText(_path, _file);
-    }
-    public void MigrateToNewFormat(string path)
-    {
-        var oldFileContent = File.ReadAllText(_path);
-        File.WriteAllText(path+".old",oldFileContent);
-        var oldJsonObject = JObject.Parse(oldFileContent);
-        
-        var newJsonObject = new JObject();
-    
-        newJsonObject["version"] = "1.0";  
-    
-        var customShells = new JObject();
-        newJsonObject["customShells"] = customShells;
-
-        var profiles = new JObject();
-
-        foreach (var (key, value) in oldJsonObject)
-        {
-            if (value is JObject data)
-            {
-                var id = int.Parse(key);
-                var name = data["Name"]?.ToString();
-                var command = data["Command"]?.ToString();
-
-                var profile = new JObject
-                {
-                    { "Id", id },
-                    { "Name", name },
-                    { "Command", command }
-                };
-            
-                profiles[key] = profile;
-            }
-        }
-
-        newJsonObject["profiles"] = profiles;
-
-        _file = newJsonObject.ToString();
-        File.WriteAllText(_path, _file);
-    }
-
 }

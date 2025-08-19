@@ -2,20 +2,33 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:system="clr-namespace:System;assembly=mscorlib">
 
+    <!-- Meta plugin -->
     <system:String x:Key="plugin_easyssh_plugin_name">EasySSH</system:String>
-    <system:String x:Key="plugin_easyssh_plugin_description">ssh with Flow-Launcher</system:String>
-    
-    <system:String x:Key="plugin_easyssh_subtitle_commandadd">add &lt;profile name&gt; &lt;ssh command&gt;</system:String>
-    <system:String x:Key="plugin_easyssh_title_commandremove">Quel profile supprimer ?</system:String>
-    <system:String x:Key="plugin_easyssh_title_commandprofiles">Quel profile lancer ?</system:String>
-    <system:String x:Key="plugin_easyssh_title_commandcustomshell">Quel launcher ssh utilisé ?</system:String>
-    <system:String x:Key="plugin_easyssh_subtitle_commanddirectconnect">se connecter à:</system:String>
-    <system:String x:Key="plugin_easyssh_subtitle_commandcustomshell">choose the shell you want use:</system:String>
-    <system:String x:Key="plugin_easyssh_subtitle_default">utilisation: add ; remove ; profiles ; d ; shell</system:String>
-    
+    <system:String x:Key="plugin_easyssh_plugin_description">Enregistrez et lancez des commandes SSH depuis Flow Launcher.</system:String>
+
+    <!-- Messages d’état -->
     <system:String x:Key="plugin_easyssh_sshnotinstalled_title">EasySSH</system:String>
-    <system:String x:Key="plugin_easyssh_sshnotinstalled_subtitle">Vous devez installer OpenSSH pour utiliser le plugin.</system:String>
+    <system:String x:Key="plugin_easyssh_sshnotinstalled_subtitle">Client OpenSSH introuvable sur ce système.</system:String>
+
     <system:String x:Key="plugin_easyssh_databasenotcreated_title">EasySSH</system:String>
-    <system:String x:Key="plugin_easyssh_databasenotcreated_subtitle">Impossible de crée la base de donnée, ouvrer une issue sur github.</system:String>
+    <system:String x:Key="plugin_easyssh_databasenotcreated_subtitle">Impossible de créer la base des profils.</system:String>
+
+    <!-- Par défaut / aide -->
+    <system:String x:Key="plugin_easyssh_subtitle_default">Tapez : add &lt;nom&gt; ssh user@host • remove • profiles • d &lt;commande ssh...&gt;</system:String>
+
+    <!-- AJOUT -->
+    <system:String x:Key="plugin_easyssh_title_commandadd">Ajouter un profil</system:String>
+    <system:String x:Key="plugin_easyssh_subtitle_commandadd">Usage : add &lt;nom&gt; ssh user@host</system:String>
+
+    <!-- SUPPRESSION -->
+    <system:String x:Key="plugin_easyssh_title_commandremove">Supprimer un profil</system:String>
+    <system:String x:Key="plugin_easyssh_subtitle_commandremove">Sélectionnez un profil à supprimer.</system:String>
+
+    <!-- PROFILS -->
+    <system:String x:Key="plugin_easyssh_title_commandprofiles">Profils enregistrés</system:String>
+    <system:String x:Key="plugin_easyssh_subtitle_commandprofiles">Sélectionnez un profil pour vous connecter.</system:String>
+
+    <!-- CONNEXION DIRECTE -->
+    <system:String x:Key="plugin_easyssh_subtitle_commanddirectconnect">Connexion directe :</system:String>
 
 </ResourceDictionary>
