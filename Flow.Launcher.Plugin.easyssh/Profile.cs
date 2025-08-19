@@ -44,6 +44,14 @@ public class UserData
     [JsonIgnore]
     public AutoSaveDictionary<string, string> CustomShell { get; private set; }
 
+
+    /// <summary>
+    /// The executable path/key of the selected custom shell to use for SSH runs.
+    /// Must match a key in <see cref="CustomShell"/>.
+    /// </summary>
+    public string? SelectedCustomShell { get; set; }
+
+
     /// <summary>
     /// Binds the auto-save callback to both facades.
     /// Call this after construction and after deserialization.
