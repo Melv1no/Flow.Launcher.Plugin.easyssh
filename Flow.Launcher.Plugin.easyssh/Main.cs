@@ -187,16 +187,33 @@ namespace Flow.Launcher.Plugin.EasySsh
                 case CommandProfiles:
                     {
                         var list = new List<Result>
-                    {
-                        new Result
                         {
-                            Title = GetTranslation("plugin_easyssh_title_commandprofiles"),
-                            SubTitle = GetTranslation("plugin_easyssh_subtitle_commandprofiles"),
-                            IcoPath = AppIconPath
-                        }
-                    };
+                            new Result
+                            {
+                                Title = GetTranslation("plugin_easyssh_title_commandprofiles"),
+                                SubTitle = GetTranslation("plugin_easyssh_subtitle_commandprofiles"),
+                                IcoPath = AppIconPath
+                            }
+                        };
 
-                        foreach (var kv in _profileManager.UserData.Entries.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
+                        var searchTerms = parts.Skip(1)
+                            .Select(t => t.Trim())
+                            .Where(t => t.Length > 0)
+                            .ToArray();
+
+                        var entries = _profileManager.UserData.Entries;
+
+                        var filtered = searchTerms.Length == 0
+                            ? entries.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+                            : entries
+                                .Where(kv => searchTerms.All(term =>
+                                    kv.Key.Contains(term, StringComparison.OrdinalIgnoreCase)
+                                    || kv.Value.Contains(term, StringComparison.OrdinalIgnoreCase)))
+                                .OrderBy(kv => searchTerms.All(term =>
+                                    kv.Key.Contains(term, StringComparison.OrdinalIgnoreCase)) ? 0 : 1)
+                                .ThenBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase);
+
+                        foreach (var kv in filtered)
                         {
                             var key = kv.Key; var val = kv.Value;
                             list.Add(new Result
