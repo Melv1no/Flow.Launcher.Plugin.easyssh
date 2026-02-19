@@ -207,10 +207,10 @@ namespace Flow.Launcher.Plugin.EasySsh
                             ? entries.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
                             : entries
                                 .Where(kv => searchTerms.All(term =>
-                                    kv.Key.Contains(term, StringComparison.OrdinalIgnoreCase)
-                                    || kv.Value.Contains(term, StringComparison.OrdinalIgnoreCase)))
+                                    ContainsIgnoreAccents(kv.Key, term)
+                                    || ContainsIgnoreAccents(kv.Value, term)))
                                 .OrderBy(kv => searchTerms.All(term =>
-                                    kv.Key.Contains(term, StringComparison.OrdinalIgnoreCase)) ? 0 : 1)
+                                    ContainsIgnoreAccents(kv.Key, term)) ? 0 : 1)
                                 .ThenBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase);
 
                         foreach (var kv in filtered)
@@ -374,6 +374,30 @@ namespace Flow.Launcher.Plugin.EasySsh
         }
 
         public static string GetTranslation(string key) => _pluginContext.API.GetTranslation(key);
+
+        /// <summary>
+        /// Supprime les diacritiques (accents) d'une chaine pour que "e" corresponde a "e", etc.
+        /// </summary>
+        private static string RemoveDiacritics(string text)
+        {
+            var normalized = text.Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder(normalized.Length);
+            foreach (var c in normalized)
+            {
+                if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c)
+                    != System.Globalization.UnicodeCategory.NonSpacingMark)
+                    sb.Append(c);
+            }
+            return sb.ToString().Normalize(NormalizationForm.FormC);
+        }
+
+        /// <summary>
+        /// Contains insensible aux accents et a la casse.
+        /// </summary>
+        private static bool ContainsIgnoreAccents(string source, string term)
+        {
+            return RemoveDiacritics(source).Contains(RemoveDiacritics(term), StringComparison.OrdinalIgnoreCase);
+        }
 
         private void RunSshCommand(string originalSshCmd)
         {
