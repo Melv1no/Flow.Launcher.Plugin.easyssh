@@ -32,11 +32,14 @@
     <system:String x:Key="plugin_easyssh_subtitle_commanddirectconnect">Connexion directe :</system:String>
 
     <system:String x:Key="plugin_easyssh_title_commandshell_add">Ajouter un profil shell</system:String>
-    <system:String x:Key="plugin_easyssh_subtitle_commandshell_add_usage">Usage : shell add "&quot;C:\Chemin\MonClientSsh.exe&quot;" "&quot;--port {{port}} --host {{host}} --user {{user}}&quot;"</system:String>
+    <system:String x:Key="plugin_easyssh_subtitle_commandshell_add_usage_onlyexe">Usage : shell add &lt;exe&gt; ou shell add &lt;nom&gt; &lt;exe + args&gt;</system:String>
 
     <system:String x:Key="plugin_easyssh_title_commandshell_remove">Supprimer un profil shell</system:String>
     <system:String x:Key="plugin_easyssh_subtitle_commandshell_remove">Sélectionnez un profil shell à supprimer.</system:String>
 
-    <system:String x:Key="plugin_easyssh_subtitle_commandshell_help">Utilisez : shell add ; remove ; list</system:String>
+    <system:String x:Key="plugin_easyssh_subtitle_commandshell_help_onlyexe">Utilisez : shell add ; remove ; list</system:String>
+
+    <!-- STATUT SHELL -->
+    <system:String x:Key="plugin_easyssh_shell_selected">(sélectionné)</system:String>
 
 </ResourceDictionary>

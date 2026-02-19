@@ -17,6 +17,33 @@ Currently, this plugin enables you to establish an SSH connection using a single
     ssh remove (select profile to delete)
     ssh add <profile name | TestProfile> <ssh args | root@127.0.0.1>
 
+### Custom Shell
+
+By default, SSH connections are opened with `cmd.exe`. You can configure a custom shell:
+
+    ssh shell add <exe>
+
+Example:
+
+    ssh shell add wt.exe
+
+You can also define a named shell with custom arguments. This is useful when the executable needs extra parameters (e.g. selecting a Windows Terminal profile):
+
+    ssh shell add <name> <exe + args>
+
+Example:
+
+    ssh shell add wt-gitbash wt.exe -p "Git Bash"
+
+When a profile SSH command runs, the plugin will execute:
+
+    wt.exe -p "Git Bash" ssh user@host
+
+Other shell commands:
+
+    ssh shell              (list configured shells)
+    ssh shell remove       (select a shell to delete)
+
 ### To do
 
     ssh scp d <file> <user@host>:<destination>
