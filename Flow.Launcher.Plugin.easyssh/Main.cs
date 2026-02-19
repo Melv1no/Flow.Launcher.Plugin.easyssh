@@ -351,7 +351,7 @@ namespace Flow.Launcher.Plugin.EasySsh
             };
 
             panel.Children.Add(saveButton);
-            return panel;
+            return new UserControl { Content = panel };
         }
 
         public void Save()
