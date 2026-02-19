@@ -16,6 +16,7 @@ Currently, this plugin enables you to establish an SSH connection using a single
     ssh profiles (select profile to connect)
     ssh remove (select profile to delete)
     ssh add <profile name | TestProfile> <ssh args | root@127.0.0.1>
+    Terminal emulator is configured in Flow Launcher settings: Plugins > EasySSH
 
 ### To do
 

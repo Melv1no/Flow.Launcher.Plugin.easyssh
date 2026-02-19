@@ -6,11 +6,13 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Windows;
+using System.Windows.Controls;
 
 namespace Flow.Launcher.Plugin.EasySsh
 {
     /// <inheritdoc />
-    public class EasySsh : IPlugin, IPluginI18n
+    public class EasySsh : IPlugin, IPluginI18n, ISettingProvider
     {
         public static PluginInitContext _pluginContext;
         private ProfileManager _profileManager;
@@ -19,7 +21,6 @@ namespace Flow.Launcher.Plugin.EasySsh
         private const string CommandRemove = "remove";
         private const string CommandProfiles = "profiles";
         private const string CommandDirectConnect = "d";
-        private const string CommandCustomShell = "shell";
         private const string CommandDocs = "docs";
 
         private const string AppIconPath = "Images\\app.png";
@@ -28,6 +29,7 @@ namespace Flow.Launcher.Plugin.EasySsh
 
         private string _databasePath;
         private string _sshClient = "cmd.exe";
+        private const string SshPlaceholder = "{ssh}";
 
         private bool _isSshInstalled = true;
         private bool _isDatabaseCreated = true;
@@ -43,6 +45,7 @@ namespace Flow.Launcher.Plugin.EasySsh
             );
 
             _profileManager = new ProfileManager(_databasePath);
+            EnsureDefaultShellProfiles();
 
             _isSshInstalled = Utils.IsSshInstalled();
             _isDatabaseCreated = File.Exists(_databasePath);
@@ -93,7 +96,6 @@ namespace Flow.Launcher.Plugin.EasySsh
 
             switch (verb)
             {
-                // ----------------- DOCS -----------------
                 case CommandDocs:
                     {
                         results.Add(new Result
@@ -121,7 +123,6 @@ namespace Flow.Launcher.Plugin.EasySsh
                         return results;
                     }
 
-                // ----------------- ADD -----------------
                 case CommandAdd:
                     {
                         if (parts.Length >= 3 && !string.IsNullOrWhiteSpace(parts[1]))
@@ -152,7 +153,6 @@ namespace Flow.Launcher.Plugin.EasySsh
                         return results;
                     }
 
-                // ----------------- REMOVE -----------------
                 case CommandRemove:
                     {
                         var remove = new List<Result>
@@ -183,7 +183,6 @@ namespace Flow.Launcher.Plugin.EasySsh
                         return remove;
                     }
 
-                // ----------------- PROFILES -----------------
                 case CommandProfiles:
                     {
                         var list = new List<Result>
@@ -231,7 +230,6 @@ namespace Flow.Launcher.Plugin.EasySsh
                         return list;
                     }
 
-                // ----------------- DIRECT -----------------
                 case CommandDirectConnect:
                     {
                         var cmd = string.Join(' ', parts.Skip(1)).Trim();
@@ -260,106 +258,6 @@ namespace Flow.Launcher.Plugin.EasySsh
                         return results;
                     }
 
-                // ----------------- SHELL -----------------
-                case CommandCustomShell:
-                    {
-                        // shell add "<full-exe-path>"   (ou non-quoté si sans espaces)
-                        // shell remove                  (liste et supprime)
-                        if (parts.Length >= 2 && parts[1].Equals("add", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var exe = ParseOneQuotedOrToken(raw, "shell", "add");
-                            if (string.IsNullOrWhiteSpace(exe))
-                            {
-                                results.Add(new Result
-                                {
-                                    Title = GetTranslation("plugin_easyssh_title_commandshell_add"),
-                                    SubTitle = GetTranslation("plugin_easyssh_subtitle_commandshell_add_usage_onlyexe"),
-                                    IcoPath = AppIconPath
-                                });
-                                return results;
-                            }
-
-                            results.Add(new Result
-                            {
-                                Title = GetTranslation("plugin_easyssh_title_commandshell_add"),
-                                SubTitle = exe,
-                                IcoPath = AppGreenIconPath,
-                                Action = _ =>
-                                {
-                                    // On n'utilise plus la valeur, juste la clé (exe). Valeur vide.
-                                    _profileManager.UserData.CustomShell[exe] = string.Empty;
-
-                                    // Auto-sélection si aucun shell sélectionné
-                                    if (string.IsNullOrWhiteSpace(_profileManager.UserData.SelectedCustomShell))
-                                    {
-                                        _profileManager.UserData.SelectedCustomShell = exe;
-                                        _profileManager.SaveConfiguration();
-                                    }
-                                    return true;
-                                }
-                            });
-                            return results;
-                        }
-
-                        if (parts.Length >= 2 && parts[1].Equals("remove", StringComparison.OrdinalIgnoreCase))
-                        {
-                            var remove = new List<Result>
-                        {
-                            new Result
-                            {
-                                Title = GetTranslation("plugin_easyssh_title_commandshell_remove"),
-                                SubTitle = GetTranslation("plugin_easyssh_subtitle_commandshell_remove"),
-                                IcoPath = AppIconPath
-                            }
-                        };
-
-                            foreach (var kv in _profileManager.UserData.CustomShell.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
-                            {
-                                var exeKey = kv.Key;
-                                remove.Add(new Result
-                                {
-                                    Title = exeKey,
-                                    SubTitle = string.IsNullOrWhiteSpace(_profileManager.UserData.SelectedCustomShell) ? "" :
-                                               string.Equals(_profileManager.UserData.SelectedCustomShell, exeKey, StringComparison.OrdinalIgnoreCase) ? "(selected)" : "",
-                                    IcoPath = AppRedIconPath,
-                                    Action = _ =>
-                                    {
-                                        _profileManager.UserData.CustomShell.Remove(exeKey);
-
-                                        if (string.Equals(_profileManager.UserData.SelectedCustomShell, exeKey, StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            _profileManager.UserData.SelectedCustomShell = null;
-                                            _profileManager.SaveConfiguration();
-                                        }
-                                        return true;
-                                    }
-                                });
-                            }
-                            return remove;
-                        }
-
-                        // Aide + liste courante (marque le sélectionné)
-                        results.Add(new Result
-                        {
-                            Title = "shell",
-                            SubTitle = GetTranslation("plugin_easyssh_subtitle_commandshell_help_onlyexe"),
-                            IcoPath = AppIconPath
-                        });
-
-                        foreach (var kv in _profileManager.UserData.CustomShell.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
-                        {
-                            var isSelected = string.Equals(_profileManager.UserData.SelectedCustomShell, kv.Key, StringComparison.OrdinalIgnoreCase);
-                            results.Add(new Result
-                            {
-                                Title = isSelected ? $"* {kv.Key}" : kv.Key,
-                                SubTitle = isSelected ? "(selected)" : "",
-                                IcoPath = isSelected ? AppGreenIconPath : AppIconPath
-                            });
-                        }
-                        return results;
-                    }
-
-                // ----------------- DEFAULT -----------------
                 default:
                     {
                         results.Add(new Result
@@ -375,17 +273,105 @@ namespace Flow.Launcher.Plugin.EasySsh
 
         public static string GetTranslation(string key) => _pluginContext.API.GetTranslation(key);
 
+        public Control CreateSettingPanel()
+        {
+            var panel = new StackPanel { Margin = new Thickness(10) };
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Terminal emulator executable",
+                Margin = new Thickness(0, 0, 0, 4)
+            });
+
+            var exeBox = new TextBox
+            {
+                Text = _profileManager.UserData.SelectedCustomShell ?? "cmd.exe",
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            panel.Children.Add(exeBox);
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Arguments template (must contain {ssh})",
+                Margin = new Thickness(0, 0, 0, 4)
+            });
+
+            var selected = _profileManager.UserData.SelectedCustomShell ?? "cmd.exe";
+            var currentTemplate = _profileManager.UserData.CustomShell.ContainsKey(selected)
+                ? _profileManager.UserData.CustomShell[selected]
+                : SshPlaceholder;
+
+            var templateBox = new TextBox
+            {
+                Text = currentTemplate,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            panel.Children.Add(templateBox);
+
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Examples: cmd.exe + /k \"{ssh}\" | powershell.exe + -NoExit -Command \"{ssh}\" | kitty.exe + -e {ssh}",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 10)
+            });
+
+            var saveButton = new Button
+            {
+                Content = "Save terminal settings",
+                Width = 180,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+
+            saveButton.Click += (_, _) =>
+            {
+                var exe = exeBox.Text?.Trim();
+                var template = templateBox.Text?.Trim();
+
+                if (string.IsNullOrWhiteSpace(exe))
+                {
+                    _pluginContext.API.ShowMsg("EasySSH", "Executable path cannot be empty.", AppRedIconPath);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(template))
+                {
+                    template = SshPlaceholder;
+                }
+
+                if (!template.Contains(SshPlaceholder, StringComparison.Ordinal))
+                {
+                    template = $"{template} {SshPlaceholder}".Trim();
+                }
+
+                _profileManager.UserData.CustomShell[exe] = template;
+                _profileManager.UserData.SelectedCustomShell = exe;
+                _profileManager.SaveConfiguration();
+
+                _pluginContext.API.ShowMsg("EasySSH", $"Terminal updated: {exe}", AppGreenIconPath);
+            };
+
+            panel.Children.Add(saveButton);
+            return panel;
+        }
+
+        public void Save()
+        {
+            _profileManager.SaveConfiguration();
+        }
+
         private void RunSshCommand(string originalSshCmd)
         {
-            // Si un shell custom est sélectionné → <exe> <originalSshCmd>
             var selected = _profileManager.UserData.SelectedCustomShell;
             if (!string.IsNullOrWhiteSpace(selected) &&
                 _profileManager.UserData.CustomShell.ContainsKey(selected))
             {
+                var template = _profileManager.UserData.CustomShell[selected];
+                var arguments = BuildShellArguments(template, originalSshCmd);
+
                 var psiShell = new ProcessStartInfo
                 {
                     FileName = selected,
-                    Arguments = originalSshCmd,
+                    Arguments = arguments,
                     RedirectStandardInput = false,
                     RedirectStandardOutput = false,
                     RedirectStandardError = false,
@@ -396,7 +382,6 @@ namespace Flow.Launcher.Plugin.EasySsh
                 return;
             }
 
-            // Sinon fallback : cmd.exe <originalSshCmd>
             var psi = new ProcessStartInfo
             {
                 FileName = _sshClient,
@@ -410,46 +395,43 @@ namespace Flow.Launcher.Plugin.EasySsh
             new Process { StartInfo = psi }.Start();
         }
 
-        /// <summary>
-        /// Extrait 1 segment : soit une chaîne entre guillemets, soit un token jusqu’au prochain espace,
-        /// à partir de la sous-chaîne qui suit "shell add".
-        /// </summary>
-        private static string ParseOneQuotedOrToken(string raw, string keyword1, string keyword2)
+        private void EnsureDefaultShellProfiles()
         {
-            // Cherche la zone après "shell add"
-            var idxShell = raw.IndexOf(keyword1, StringComparison.OrdinalIgnoreCase);
-            if (idxShell < 0) return string.Empty;
-            var afterShell = raw.Substring(idxShell + keyword1.Length).TrimStart();
+            var updated = false;
 
-            var idxCmd = afterShell.IndexOf(keyword2, StringComparison.OrdinalIgnoreCase);
-            if (idxCmd < 0) return string.Empty;
-            var s = afterShell.Substring(idxCmd + keyword2.Length).TrimStart();
-
-            if (string.IsNullOrEmpty(s)) return string.Empty;
-
-            // Si guillemets
-            if (s[0] == '"')
+            if (!_profileManager.UserData.CustomShell.ContainsKey("cmd.exe"))
             {
-                int i = 1;
-                var sb = new StringBuilder();
-                while (i < s.Length)
-                {
-                    var c = s[i++];
-                    if (c == '\\' && i < s.Length)
-                    {
-                        var n = s[i++];
-                        sb.Append(n switch { '\"' => '\"', '\\' => '\\', _ => n });
-                        continue;
-                    }
-                    if (c == '"') return sb.ToString();
-                    sb.Append(c);
-                }
-                return string.Empty; // pas de fermeture
+                _profileManager.UserData.CustomShell["cmd.exe"] = "/k \"{ssh}\"";
+                updated = true;
             }
 
-            // Sinon token jusqu’à l’espace
-            var space = s.IndexOf(' ');
-            return space < 0 ? s : s.Substring(0, space);
+            if (!_profileManager.UserData.CustomShell.ContainsKey("powershell.exe"))
+            {
+                _profileManager.UserData.CustomShell["powershell.exe"] = "-NoExit -Command \"{ssh}\"";
+                updated = true;
+            }
+
+            if (string.IsNullOrWhiteSpace(_profileManager.UserData.SelectedCustomShell))
+            {
+                _profileManager.UserData.SelectedCustomShell = "cmd.exe";
+                updated = true;
+            }
+
+            if (updated)
+            {
+                _profileManager.SaveConfiguration();
+            }
+        }
+
+        private static string BuildShellArguments(string template, string sshCommand)
+        {
+            var effectiveTemplate = string.IsNullOrWhiteSpace(template) ? SshPlaceholder : template;
+            if (!effectiveTemplate.Contains(SshPlaceholder, StringComparison.Ordinal))
+            {
+                effectiveTemplate = $"{effectiveTemplate} {SshPlaceholder}";
+            }
+
+            return effectiveTemplate.Replace(SshPlaceholder, sshCommand, StringComparison.Ordinal);
         }
     }
 }

@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net7.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <AssemblyName>Flow.Launcher.Plugin.easyssh</AssemblyName>
     <PackageId>Flow.Launcher.Plugin.easyssh</PackageId>
     <Authors>Melv1no</Authors>
