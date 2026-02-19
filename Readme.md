@@ -21,6 +21,28 @@ You can filter profiles by typing search terms after `profiles`:
 
 The search is case-insensitive and accent-insensitive. For example, typing `preprod` will match a profile named `Préprod-web`. Multiple terms are supported — all must match either the profile name or the SSH command.
 
+#### Search ranking
+
+Results are ranked by relevance:
+
+1. Exact match on both name and command
+2. Exact match on name only
+3. Exact match on command only
+4. Fuzzy match on both name and command
+5. Fuzzy match on name only
+6. Fuzzy match on command only
+
+Within each group, results are sorted alphabetically.
+
+#### Typo tolerance
+
+The search is resilient to typos using the Damerau-Levenshtein distance algorithm. It tolerates 1 error per 5 characters, including:
+
+- Substitutions (`servrr` → `server`)
+- Insertions (`serrver` → `server`)
+- Deletions (`servr` → `server`)
+- Transpositions (`servre` → `server`)
+
     ssh remove (select profile to delete)
     ssh add <profile name | TestProfile> <ssh args | root@127.0.0.1>
 
