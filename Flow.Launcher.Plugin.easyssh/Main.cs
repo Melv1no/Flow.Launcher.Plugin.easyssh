@@ -1,4 +1,4 @@
-﻿using Flow.Launcher.Plugin;
+﻿﻿using Flow.Launcher.Plugin;
 using Flow.Launcher.Plugin.easyssh;
 using System;
 using System.Collections.Generic;
@@ -263,12 +263,13 @@ namespace Flow.Launcher.Plugin.EasySsh
                 // ----------------- SHELL -----------------
                 case CommandCustomShell:
                     {
-                        // shell add "<full-exe-path>"   (ou non-quoté si sans espaces)
-                        // shell remove                  (liste et supprime)
                         if (parts.Length >= 2 && parts[1].Equals("add", StringComparison.OrdinalIgnoreCase))
                         {
-                            var exe = ParseOneQuotedOrToken(raw, "shell", "add");
-                            if (string.IsNullOrWhiteSpace(exe))
+                            // Syntaxe nouvelle : shell add <name> <exe + args>
+                            // Syntaxe legacy   : shell add <exe>  (quote ou non, cle = exe, valeur vide)
+                            var (firstToken, remainder) = ParseShellAddArgs(raw, "shell", "add");
+
+                            if (string.IsNullOrWhiteSpace(firstToken))
                             {
                                 results.Add(new Result
                                 {
@@ -279,20 +280,22 @@ namespace Flow.Launcher.Plugin.EasySsh
                                 return results;
                             }
 
+                            var name = firstToken;
+                            var shellCmd = remainder;
+                            var displaySub = string.IsNullOrWhiteSpace(shellCmd) ? name : $"{name} \u2192 {shellCmd}";
+
                             results.Add(new Result
                             {
-                                Title = GetTranslation("plugin_easyssh_title_commandshell_add"),
-                                SubTitle = exe,
+                                Title = $"{GetTranslation("plugin_easyssh_title_commandshell_add")} {name}",
+                                SubTitle = displaySub,
                                 IcoPath = AppGreenIconPath,
                                 Action = _ =>
                                 {
-                                    // On n'utilise plus la valeur, juste la clé (exe). Valeur vide.
-                                    _profileManager.UserData.CustomShell[exe] = string.Empty;
+                                    _profileManager.UserData.CustomShell[name] = shellCmd;
 
-                                    // Auto-sélection si aucun shell sélectionné
                                     if (string.IsNullOrWhiteSpace(_profileManager.UserData.SelectedCustomShell))
                                     {
-                                        _profileManager.UserData.SelectedCustomShell = exe;
+                                        _profileManager.UserData.SelectedCustomShell = name;
                                         _profileManager.SaveConfiguration();
                                     }
                                     return true;
@@ -320,7 +323,7 @@ namespace Flow.Launcher.Plugin.EasySsh
                                 {
                                     Title = exeKey,
                                     SubTitle = string.IsNullOrWhiteSpace(_profileManager.UserData.SelectedCustomShell) ? "" :
-                                               string.Equals(_profileManager.UserData.SelectedCustomShell, exeKey, StringComparison.OrdinalIgnoreCase) ? "(selected)" : "",
+                                               string.Equals(_profileManager.UserData.SelectedCustomShell, exeKey, StringComparison.OrdinalIgnoreCase) ? GetTranslation("plugin_easyssh_shell_selected") : "",
                                     IcoPath = AppRedIconPath,
                                     Action = _ =>
                                     {
@@ -349,10 +352,13 @@ namespace Flow.Launcher.Plugin.EasySsh
                         foreach (var kv in _profileManager.UserData.CustomShell.OrderBy(k => k.Key, StringComparer.OrdinalIgnoreCase))
                         {
                             var isSelected = string.Equals(_profileManager.UserData.SelectedCustomShell, kv.Key, StringComparison.OrdinalIgnoreCase);
+                            var subtitle = string.IsNullOrWhiteSpace(kv.Value)
+                                ? (isSelected ? GetTranslation("plugin_easyssh_shell_selected") : "")
+                                : (isSelected ? $"{GetTranslation("plugin_easyssh_shell_selected")} {kv.Value}" : kv.Value);
                             results.Add(new Result
                             {
                                 Title = isSelected ? $"* {kv.Key}" : kv.Key,
-                                SubTitle = isSelected ? "(selected)" : "",
+                                SubTitle = subtitle,
                                 IcoPath = isSelected ? AppGreenIconPath : AppIconPath
                             });
                         }
@@ -377,15 +383,41 @@ namespace Flow.Launcher.Plugin.EasySsh
 
         private void RunSshCommand(string originalSshCmd)
         {
-            // Si un shell custom est sélectionné → <exe> <originalSshCmd>
+            // Si un shell custom est sélectionné
             var selected = _profileManager.UserData.SelectedCustomShell;
             if (!string.IsNullOrWhiteSpace(selected) &&
-                _profileManager.UserData.CustomShell.ContainsKey(selected))
+                _profileManager.UserData.CustomShell.TryGetValue(selected, out var shellValue))
             {
+                string fileName;
+                string arguments;
+
+                if (string.IsNullOrWhiteSpace(shellValue))
+                {
+                    // Pas de valeur → la clé sert d'exécutable
+                    fileName = selected;
+                    arguments = originalSshCmd;
+                }
+                else
+                {
+                    // Valeur renseignée → elle contient l'exé + ses paramètres
+                    // On ajoute la commande SSH à la fin
+                    var firstSpace = shellValue.IndexOf(' ');
+                    if (firstSpace < 0)
+                    {
+                        fileName = shellValue;
+                        arguments = originalSshCmd;
+                    }
+                    else
+                    {
+                        fileName = shellValue.Substring(0, firstSpace);
+                        arguments = shellValue.Substring(firstSpace + 1) + " " + originalSshCmd;
+                    }
+                }
+
                 var psiShell = new ProcessStartInfo
                 {
-                    FileName = selected,
-                    Arguments = originalSshCmd,
+                    FileName = fileName,
+                    Arguments = arguments,
                     RedirectStandardInput = false,
                     RedirectStandardOutput = false,
                     RedirectStandardError = false,
@@ -411,23 +443,25 @@ namespace Flow.Launcher.Plugin.EasySsh
         }
 
         /// <summary>
-        /// Extrait 1 segment : soit une chaîne entre guillemets, soit un token jusqu’au prochain espace,
-        /// à partir de la sous-chaîne qui suit "shell add".
+        /// Extrait le texte apres "keyword1 keyword2" dans <paramref name="raw"/>,
+        /// puis parse le premier segment (quote ou token) et renvoie le reste separement.
         /// </summary>
-        private static string ParseOneQuotedOrToken(string raw, string keyword1, string keyword2)
+        /// <returns>(firstToken, remainder) — remainder est vide s'il n'y a rien apres le premier segment.</returns>
+        private static (string firstToken, string remainder) ParseShellAddArgs(string raw, string keyword1, string keyword2)
         {
-            // Cherche la zone après "shell add"
             var idxShell = raw.IndexOf(keyword1, StringComparison.OrdinalIgnoreCase);
-            if (idxShell < 0) return string.Empty;
+            if (idxShell < 0) return (string.Empty, string.Empty);
             var afterShell = raw.Substring(idxShell + keyword1.Length).TrimStart();
 
             var idxCmd = afterShell.IndexOf(keyword2, StringComparison.OrdinalIgnoreCase);
-            if (idxCmd < 0) return string.Empty;
+            if (idxCmd < 0) return (string.Empty, string.Empty);
             var s = afterShell.Substring(idxCmd + keyword2.Length).TrimStart();
 
-            if (string.IsNullOrEmpty(s)) return string.Empty;
+            if (string.IsNullOrEmpty(s)) return (string.Empty, string.Empty);
 
-            // Si guillemets
+            string token;
+            int consumed;
+
             if (s[0] == '"')
             {
                 int i = 1;
@@ -441,15 +475,22 @@ namespace Flow.Launcher.Plugin.EasySsh
                         sb.Append(n switch { '\"' => '\"', '\\' => '\\', _ => n });
                         continue;
                     }
-                    if (c == '"') return sb.ToString();
+                    if (c == '"') { token = sb.ToString(); consumed = i; goto done; }
                     sb.Append(c);
                 }
-                return string.Empty; // pas de fermeture
+                return (string.Empty, string.Empty); // pas de guillemet fermant
+            }
+            else
+            {
+                var space = s.IndexOf(' ');
+                if (space < 0) return (s, string.Empty);
+                token = s.Substring(0, space);
+                consumed = space;
             }
 
-            // Sinon token jusqu’à l’espace
-            var space = s.IndexOf(' ');
-            return space < 0 ? s : s.Substring(0, space);
+            done:
+            var rest = s.Substring(consumed).TrimStart();
+            return (token, rest);
         }
     }
 }
