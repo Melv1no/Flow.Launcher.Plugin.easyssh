@@ -192,7 +192,8 @@ namespace Flow.Launcher.Plugin.EasySsh
                             {
                                 Title = GetTranslation("plugin_easyssh_title_commandprofiles"),
                                 SubTitle = GetTranslation("plugin_easyssh_subtitle_commandprofiles"),
-                                IcoPath = AppIconPath
+                                IcoPath = AppIconPath,
+                                Score = int.MaxValue
                             }
                         };
 
@@ -201,26 +202,36 @@ namespace Flow.Launcher.Plugin.EasySsh
                             .Where(t => t.Length > 0)
                             .ToArray();
 
-                        var entries = _profileManager.UserData.Entries;
+                        List<KeyValuePair<string, string>> filteredList;
 
-                        var filtered = searchTerms.Length == 0
-                            ? entries.OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
-                            : entries
-                                .Where(kv => searchTerms.All(term =>
-                                    kv.Key.Contains(term, StringComparison.OrdinalIgnoreCase)
-                                    || kv.Value.Contains(term, StringComparison.OrdinalIgnoreCase)))
-                                .OrderBy(kv => searchTerms.All(term =>
-                                    kv.Key.Contains(term, StringComparison.OrdinalIgnoreCase)) ? 0 : 1)
-                                .ThenBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase);
-
-                        foreach (var kv in filtered)
+                        if (searchTerms.Length == 0)
                         {
-                            var key = kv.Key; var val = kv.Value;
+                            // Pas de recherche : laisser Flow Launcher trier par historique d'utilisation
+                            filteredList = _profileManager.UserData.Entries.ToList();
+                        }
+                        else
+                        {
+                            // Recherche : tri alpha stable puis tri stable par pertinence
+                            filteredList = _profileManager.UserData.Entries
+                                .Where(kv => MatchesProfile(kv.Key, kv.Value, searchTerms))
+                                .OrderBy(kv => RemoveDiacritics(kv.Key), StringComparer.OrdinalIgnoreCase)
+                                .OrderBy(kv => ScoreProfile(kv.Key, kv.Value, searchTerms))
+                                .ToList();
+                        }
+
+                        for (var i = 0; i < filteredList.Count; i++)
+                        {
+                            var key = filteredList[i].Key;
+                            var val = filteredList[i].Value;
                             list.Add(new Result
                             {
                                 Title = key,
                                 SubTitle = val,
                                 IcoPath = AppGreenIconPath,
+                                Score = filteredList.Count - i,
+                                // TODO: décommenter après upgrade SDK Flow.Launcher.Plugin > 4.0.0
+                                // AddSelectedCount = searchTerms.Length == 0,
+                                // RecordKey = key,
                                 Action = _ =>
                                 {
                                     RunSshCommand(val);
@@ -380,6 +391,144 @@ namespace Flow.Launcher.Plugin.EasySsh
         }
 
         public static string GetTranslation(string key) => _pluginContext.API.GetTranslation(key);
+
+        /// <summary>
+        /// Supprime les diacritiques (accents) d'une chaine pour que "e" corresponde a "e", etc.
+        /// </summary>
+        private static string RemoveDiacritics(string text)
+        {
+            var normalized = text.Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder(normalized.Length);
+            foreach (var c in normalized)
+            {
+                if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c)
+                    != System.Globalization.UnicodeCategory.NonSpacingMark)
+                    sb.Append(c);
+            }
+            return sb.ToString().Normalize(NormalizationForm.FormC);
+        }
+
+        /// <summary>
+        /// Calcule un score de pertinence pour un profil.
+        /// Plus le score est bas, plus le profil est pertinent.
+        /// 0 = match exact nom ET commande
+        /// 1 = match exact nom seulement
+        /// 2 = match exact commande seulement
+        /// 3 = match fuzzy nom ET commande
+        /// 4 = match fuzzy nom seulement
+        /// 5 = match fuzzy commande seulement
+        /// </summary>
+        private static int ScoreProfile(string key, string value, string[] searchTerms)
+        {
+            var exactInKey = true;
+            var exactInValue = true;
+            var fuzzyInKey = true;
+            var fuzzyInValue = true;
+
+            foreach (var term in searchTerms)
+            {
+                if (!ContainsIgnoreAccents(key, term))
+                    exactInKey = false;
+                if (!ContainsIgnoreAccents(value, term))
+                    exactInValue = false;
+                if (!FuzzyContains(key, term))
+                    fuzzyInKey = false;
+                if (!FuzzyContains(value, term))
+                    fuzzyInValue = false;
+            }
+
+            if (exactInKey && exactInValue) return 0;
+            if (exactInKey)                 return 1;
+            if (exactInValue)               return 2;
+            if (fuzzyInKey && fuzzyInValue)  return 3;
+            if (fuzzyInKey)                 return 4;
+            return 5; // fuzzy commande seulement
+        }
+
+        /// <summary>
+        /// Vérifie si un profil matche tous les termes (exact ou fuzzy).
+        /// </summary>
+        private static bool MatchesProfile(string key, string value, string[] searchTerms)
+        {
+            return searchTerms.All(term =>
+                ContainsIgnoreAccents(key, term)
+                || ContainsIgnoreAccents(value, term)
+                || FuzzyContains(key, term)
+                || FuzzyContains(value, term));
+        }
+
+        /// <summary>
+        /// Contains insensible aux accents et a la casse.
+        /// </summary>
+        private static bool ContainsIgnoreAccents(string source, string term)
+        {
+            return RemoveDiacritics(source).Contains(RemoveDiacritics(term), StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Recherche approximative : vérifie si <paramref name="source"/> contient une sous-chaîne
+        /// proche de <paramref name="term"/> avec une tolérance de 1 erreur pour 5 caractères.
+        /// Utilise la distance de Levenshtein sur une fenêtre glissante.
+        /// </summary>
+        private static bool FuzzyContains(string source, string term)
+        {
+            var s = RemoveDiacritics(source).ToLowerInvariant();
+            var t = RemoveDiacritics(term).ToLowerInvariant();
+
+            if (t.Length == 0) return true;
+            var maxErrors = t.Length / 5;
+
+            // Moins de 5 caractères → pas de tolérance, match exact uniquement
+            if (maxErrors == 0) return s.Contains(t);
+
+            // Fenêtre glissante : on teste chaque sous-chaîne de longueur [t.Length - maxErrors .. t.Length + maxErrors]
+            for (var start = 0; start < s.Length; start++)
+            {
+                var endMax = Math.Min(s.Length, start + t.Length + maxErrors);
+                var endMin = Math.Max(start + 1, start + t.Length - maxErrors);
+
+                for (var end = endMin; end <= endMax; end++)
+                {
+                    if (DamerauLevenshteinDistance(s, start, end, t) <= maxErrors)
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Distance de Damerau-Levenshtein entre s[start..end) et t.
+        /// Compte insertions, suppressions, substitutions ET transpositions adjacentes comme 1 opération chacune.
+        /// </summary>
+        private static int DamerauLevenshteinDistance(string s, int start, int end, string t)
+        {
+            var sLen = end - start;
+            var tLen = t.Length;
+            var d = new int[sLen + 1, tLen + 1];
+
+            for (var i = 0; i <= sLen; i++) d[i, 0] = i;
+            for (var j = 0; j <= tLen; j++) d[0, j] = j;
+
+            for (var i = 1; i <= sLen; i++)
+            {
+                for (var j = 1; j <= tLen; j++)
+                {
+                    var cost = s[start + i - 1] == t[j - 1] ? 0 : 1;
+                    d[i, j] = Math.Min(
+                        Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                        d[i - 1, j - 1] + cost);
+
+                    // Transposition
+                    if (i > 1 && j > 1
+                        && s[start + i - 1] == t[j - 2]
+                        && s[start + i - 2] == t[j - 1])
+                    {
+                        d[i, j] = Math.Min(d[i, j], d[i - 2, j - 2] + cost);
+                    }
+                }
+            }
+            return d[sLen, tLen];
+        }
 
         private void RunSshCommand(string originalSshCmd)
         {
