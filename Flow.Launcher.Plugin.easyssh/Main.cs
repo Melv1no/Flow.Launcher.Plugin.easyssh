@@ -565,7 +565,7 @@ namespace Flow.Launcher.Plugin.EasySsh
 
                 var psiShell = new ProcessStartInfo
                 {
-                    FileName = fileName,
+                    FileName = Utils.ResolveExecutable(fileName),
                     Arguments = arguments,
                     RedirectStandardInput = false,
                     RedirectStandardOutput = false,
@@ -580,7 +580,7 @@ namespace Flow.Launcher.Plugin.EasySsh
             // Sinon fallback : cmd.exe <originalSshCmd>
             var psi = new ProcessStartInfo
             {
-                FileName = _sshClient,
+                FileName = Utils.ResolveExecutable(_sshClient),
                 Arguments = originalSshCmd,
                 RedirectStandardInput = false,
                 RedirectStandardOutput = false,

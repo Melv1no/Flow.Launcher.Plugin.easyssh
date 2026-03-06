@@ -14,6 +14,41 @@ namespace Flow.Launcher.Plugin.easyssh
         /// Checks if SSH is installed on the system.
         /// </summary>
         /// <returns><c>true</c> if SSH is installed; otherwise, <c>false</c>.</returns>
+        /// <summary>
+        /// Resolves the full path of an executable using the 'where' command.
+        /// Returns the original name if resolution fails (let the OS handle it).
+        /// </summary>
+        public static string ResolveExecutable(string exeName)
+        {
+            // Already an absolute path — no need to resolve
+            if (Path.IsPathRooted(exeName) && File.Exists(exeName))
+                return exeName;
+
+            try
+            {
+                var p = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "where",
+                        Arguments = exeName,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                p.Start();
+                string output = p.StandardOutput.ReadLine(); // first result is enough
+                p.WaitForExit();
+                if (!string.IsNullOrWhiteSpace(output) && File.Exists(output.Trim()))
+                    return output.Trim();
+            }
+            catch { /* fall through */ }
+
+            return exeName;
+        }
+
         public static bool IsSshInstalled()
         {
             // Create a new process to run the 'where' command to locate the 'ssh' executable.
