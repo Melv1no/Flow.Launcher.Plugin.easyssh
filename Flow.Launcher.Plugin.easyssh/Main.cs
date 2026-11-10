@@ -577,11 +577,11 @@ namespace Flow.Launcher.Plugin.EasySsh
                 return;
             }
 
-            // Sinon fallback : cmd.exe <originalSshCmd>
+            // Sinon fallback : cmd.exe /c <originalSshCmd>
             var psi = new ProcessStartInfo
             {
                 FileName = Utils.ResolveExecutable(_sshClient),
-                Arguments = originalSshCmd,
+                Arguments = $"/c {originalSshCmd}",
                 RedirectStandardInput = false,
                 RedirectStandardOutput = false,
                 RedirectStandardError = false,
