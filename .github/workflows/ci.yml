@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build
+        run: dotnet build Flow.Launcher.Plugin.easyssh.sln --configuration Release
+
+      - name: Test
+        run: dotnet test Flow.Launcher.Plugin.easyssh.sln --configuration Release --no-build --logger "console;verbosity=normal"
+
+      - name: Package
+        shell: pwsh
+        run: ./scripts/package.ps1 -Configuration Release
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: easyssh
+          path: artifacts/easyssh.zip
+          if-no-files-found: error
