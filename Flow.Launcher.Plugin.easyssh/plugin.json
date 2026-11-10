@@ -1,12 +1,14 @@
 {
+    "$schema": "https://www.flowlauncher.com/schemas/plugin.schema.json",
     "ID": "8CBACA12D99946D7B5E4E162EED6B045",
-    "ActionKeyword": "ssh",
+    "ActionKeywords": [ "ssh" ],
     "Name": "EasySSH",
-    "Description": "ssh with Flow-Launcher",
+    "Description": "Save, search and open SSH connections in your favorite terminal.",
     "Author": "Melv1no",
-    "Version": "1.2.0.2",
+    "Version": "3.0.0",
     "Language": "csharp",
     "Website": "https://github.com/Melv1no/Flow.Launcher.Plugin.easyssh",
     "IcoPath": "Images\\app.png",
-    "ExecuteFileName": "Flow.Launcher.Plugin.easyssh.dll"
+    "ExecuteFileName": "Flow.Launcher.Plugin.easyssh.dll",
+    "MinimumAppVersion": "2.0.0"
 }
