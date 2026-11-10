@@ -32,6 +32,19 @@ public sealed record LegacyMergeResult(PluginData Data, int AddedProfiles, int A
 /// </summary>
 public static class LegacyImporter
 {
+    /// <summary>Placeholder of the command in the shells of the 1.2 development builds.</summary>
+    private const string LegacyCommandPlaceholder = "{ssh}";
+
+    /// <summary>
+    /// Shells that the 1.2 development builds added by themselves. The user didn't choose them and a preset
+    /// does the same (with a window title and the window kept open on errors): the preset is used instead of a copy.
+    /// </summary>
+    private static readonly (string Key, string Value, TerminalDefinition Preset)[] AddedByDevelopmentBuilds =
+    [
+        ("cmd.exe", "/k \"{ssh}\"", BuiltInTerminals.CommandPrompt),
+        ("powershell.exe", "-NoExit -Command \"{ssh}\"", BuiltInTerminals.WindowsPowerShell),
+    ];
+
     /// <summary>Where EasySSH 1.x stored its data.</summary>
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh", "profiles.json");
@@ -143,7 +156,14 @@ public static class LegacyImporter
         {
             foreach (var shell in shells.EnumerateObject())
             {
-                var terminal = ConvertShell(shell.Name, shell.Value.ValueKind == JsonValueKind.String ? shell.Value.GetString() : null);
+                var value = shell.Value.ValueKind == JsonValueKind.String ? shell.Value.GetString() : null;
+                if (FindAddedPreset(shell.Name, value) is { } preset)
+                {
+                    legacyNames[shell.Name] = preset.Name;
+                    continue;
+                }
+
+                var terminal = ConvertShell(shell.Name, value);
                 if (terminal is null)
                 {
                     continue;
@@ -165,26 +185,44 @@ public static class LegacyImporter
     }
 
     /// <summary>
-    /// Converts an EasySSH 1.2 custom shell. Either the key is the program and the value is empty
-    /// (<c>"wt.exe": ""</c>), or the key is a name and the value holds the program and its arguments
-    /// (<c>"git-bash": "wt.exe -p \"Git Bash\""</c>). In both cases the command was appended at the end.
+    /// Converts an EasySSH 1.x custom shell. Three forms were written:
+    /// <list type="bullet">
+    /// <item>1.2: the key is the program and the value is empty (<c>"wt.exe": ""</c>);</item>
+    /// <item>1.2.0.1: the key is a name and the value holds the program and its arguments
+    /// (<c>"git-bash": "wt.exe -p \"Git Bash\""</c>);</item>
+    /// <item>development builds: the key is the program and the value its arguments, where <c>{ssh}</c> stands for
+    /// the command (<c>"kitty.exe": "-e {ssh}"</c>).</item>
+    /// </list>
+    /// Without <c>{ssh}</c>, the command was added at the end, as without <c>{command}</c> now.
     /// </summary>
     private static TerminalDefinition? ConvertShell(string key, string? value)
     {
-        if (string.IsNullOrWhiteSpace(key))
+        var executable = key.Trim().Trim('"');
+        if (executable.Length == 0)
         {
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(value))
+        var arguments = value?.Trim() ?? string.Empty;
+        var (program, programArguments) = CommandLine.SplitFirst(arguments);
+        if (arguments.Length == 0 || arguments.Contains(LegacyCommandPlaceholder, StringComparison.Ordinal) || IsOption(program))
         {
-            var executable = key.Trim().Trim('"');
-            return new TerminalDefinition(ReserveSafeName(Path.GetFileName(executable)), executable, string.Empty);
+            return new TerminalDefinition(
+                ReserveSafeName(Path.GetFileName(executable)),
+                executable,
+                arguments.Replace(LegacyCommandPlaceholder, LaunchPlanBuilder.CommandPlaceholder, StringComparison.Ordinal));
         }
 
-        var (program, arguments) = CommandLine.SplitFirst(value);
-        return program.Length == 0 ? null : new TerminalDefinition(ReserveSafeName(key.Trim()), program, arguments);
+        return program.Length == 0 ? null : new TerminalDefinition(ReserveSafeName(key.Trim()), program, programArguments);
     }
+
+    /// <summary>Whether a token is an option (<c>-e</c>, <c>/k</c>) rather than a program.</summary>
+    private static bool IsOption(string token) => token.StartsWith('-') || token.StartsWith('/');
+
+    private static TerminalDefinition? FindAddedPreset(string key, string? value) =>
+        AddedByDevelopmentBuilds.FirstOrDefault(shell =>
+            shell.Key.Equals(key.Trim(), StringComparison.OrdinalIgnoreCase)
+            && shell.Value.Equals(value?.Trim(), StringComparison.Ordinal)).Preset;
 
     private static string ReserveSafeName(string name)
     {
