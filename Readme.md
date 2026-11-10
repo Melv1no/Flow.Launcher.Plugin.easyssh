@@ -1,3 +1,5 @@
+<img src="Flow.Launcher.Plugin.easyssh/Images/app.png" alt="EasySSH" width="96" align="right">
+
 EasySSH for Flow Launcher
 =========================
 
@@ -165,6 +167,14 @@ dotnet build                     # build the plugin and the tests
 dotnet test                      # run the tests
 ./scripts/deploy-local.ps1       # build and install in your Flow Launcher (the installed copy is moved to a backup)
 ./scripts/package.ps1            # create artifacts/easyssh.zip, as published
+```
+
+The icons of `Flow.Launcher.Plugin.easyssh/Images` are drawn by `scripts/icons/generate-icons.cs` (colors, shapes
+and badges are at the top of the file). To change them, edit the script and run it with the .NET 10 SDK:
+
+```powershell
+dotnet run scripts/icons/generate-icons.cs                              # write the PNG files
+dotnet run scripts/icons/generate-icons.cs -- --preview preview.png     # also write a sheet of every size
 ```
 
 The plugin is compiled against `Flow.Launcher.Plugin` 5.0.0, the API of Flow Launcher 2.0 (`MinimumAppVersion`

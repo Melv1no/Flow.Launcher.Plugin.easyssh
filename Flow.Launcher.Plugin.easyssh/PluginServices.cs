@@ -5,12 +5,26 @@ using Flow.Launcher.Plugin.EasySsh.Storage;
 
 namespace Flow.Launcher.Plugin.EasySsh;
 
-/// <summary>Icons shipped with the plugin (paths relative to the plugin folder).</summary>
+/// <summary>
+/// Icons shipped with the plugin (paths relative to the plugin folder).
+/// They are drawn by <c>scripts/icons/generate-icons.cs</c>.
+/// </summary>
 internal static class Icons
 {
+    /// <summary>The plugin icon: connections, commands and information.</summary>
     public const string App = @"Images\app.png";
-    public const string Positive = @"Images\app-green.png";
-    public const string Negative = @"Images\app-red.png";
+
+    /// <summary>Something is about to be created.</summary>
+    public const string Add = @"Images\add.png";
+
+    /// <summary>The current choice, or a success.</summary>
+    public const string Selected = @"Images\selected.png";
+
+    /// <summary>Something is about to be deleted.</summary>
+    public const string Remove = @"Images\remove.png";
+
+    /// <summary>A problem to look at.</summary>
+    public const string Warning = @"Images\warning.png";
 }
 
 /// <summary>Segoe Fluent Icons glyphs, used when "Use Segoe Fluent Icons" is enabled in Flow Launcher.</summary>

@@ -18,6 +18,7 @@ A complete rework of the plugin. It requires Flow Launcher 2.0 or later.
 - The window stays open when ssh fails, to read the error (can be disabled).
 - Profile names with spaces (`ssh add "My server" …`).
 - Matching characters of the names are highlighted.
+- New icon, and icons that tell what a result does: add, current choice, remove, warning.
 
 ### Fixed
 

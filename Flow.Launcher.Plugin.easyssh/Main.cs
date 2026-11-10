@@ -156,7 +156,7 @@ public sealed class Main : IAsyncPlugin, IContextMenu, IPluginI18n, ISettingProv
                 {
                     Title = Translate("plugin_easyssh_query_error_title"),
                     SubTitle = e.Message,
-                    IcoPath = Icons.Negative,
+                    IcoPath = Icons.Warning,
                     Glyph = Glyphs.Warning,
                 },
             ];
@@ -169,10 +169,10 @@ public sealed class Main : IAsyncPlugin, IContextMenu, IPluginI18n, ISettingProv
         switch (store.LoadStatus)
         {
             case DataLoadStatus.RestoredFromBackup:
-                Notify(services, services.T("plugin_easyssh_data_restored", store.DamagedFileCopy ?? store.FilePath), Icons.Negative);
+                Notify(services, services.T("plugin_easyssh_data_restored", store.DamagedFileCopy ?? store.FilePath), Icons.Warning);
                 break;
             case DataLoadStatus.ResetAfterCorruption:
-                Notify(services, services.T("plugin_easyssh_data_reset", store.DamagedFileCopy ?? store.FilePath), Icons.Negative);
+                Notify(services, services.T("plugin_easyssh_data_reset", store.DamagedFileCopy ?? store.FilePath), Icons.Warning);
                 break;
         }
     }
@@ -238,7 +238,7 @@ public sealed class Main : IAsyncPlugin, IContextMenu, IPluginI18n, ISettingProv
 
         if (added.Profiles + added.Terminals > 0)
         {
-            Notify(services, services.T("plugin_easyssh_import_done", added.Profiles, added.Terminals, legacyPath), Icons.Positive);
+            Notify(services, services.T("plugin_easyssh_import_done", added.Profiles, added.Terminals, legacyPath), Icons.Selected);
         }
     }
 
@@ -247,7 +247,7 @@ public sealed class Main : IAsyncPlugin, IContextMenu, IPluginI18n, ISettingProv
         Title = Translate("plugin_easyssh_init_error_title"),
         SubTitle = Translate("plugin_easyssh_init_error_subtitle") + " " + _initError?.Message,
         SubTitleToolTip = _initError?.ToString(),
-        IcoPath = Icons.Negative,
+        IcoPath = Icons.Warning,
         Glyph = Glyphs.Warning,
         Action = _ =>
         {

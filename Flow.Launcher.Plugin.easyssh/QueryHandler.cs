@@ -205,8 +205,8 @@ internal sealed class QueryHandler(PluginServices services)
         var (icon, glyph, action) = mode switch
         {
             PickMode.Edit => (Icons.App, Glyphs.Edit, new Func<ActionContext, bool>(_ => EditProfile(profile, context.Prefix))),
-            PickMode.Remove => (Icons.Negative, Glyphs.Remove, _ => RemoveProfile(profile, fromContextMenu: false)),
-            _ => (Icons.Positive, Glyphs.Host, _ => services.Connect(profile.Command, profile.Name)),
+            PickMode.Remove => (Icons.Remove, Glyphs.Remove, _ => RemoveProfile(profile, fromContextMenu: false)),
+            _ => (Icons.App, Glyphs.Host, _ => services.Connect(profile.Command, profile.Name)),
         };
 
         return new Result
@@ -271,7 +271,7 @@ internal sealed class QueryHandler(PluginServices services)
     {
         yield return ChangeQueryResult(
             services.T("plugin_easyssh_cmd_add_title"), services.T("plugin_easyssh_cmd_add_subtitle"),
-            context.Prefix + "add ", Glyphs.Add, ShortcutScore + 3);
+            context.Prefix + "add ", Glyphs.Add, ShortcutScore + 3, Icons.Add);
         yield return ChangeQueryResult(
             services.T("plugin_easyssh_shortcut_terminal_title", services.DisplayName(Data.GetSelectedTerminal())),
             services.T("plugin_easyssh_shortcut_terminal_subtitle"),
@@ -306,7 +306,7 @@ internal sealed class QueryHandler(PluginServices services)
         {
             var usage = ChangeQueryResult(
                 services.T("plugin_easyssh_cmd_add_title"), services.T("plugin_easyssh_cmd_add_subtitle"),
-                context.Prefix + "add ", Glyphs.Add, TopScore);
+                context.Prefix + "add ", Glyphs.Add, TopScore, Icons.Add);
             return [usage, .. Search(typedWord, context, withShortcuts: false, withFallback: false).Where(IsMatchResult)];
         }
 
@@ -319,7 +319,7 @@ internal sealed class QueryHandler(PluginServices services)
                 {
                     Title = services.T("plugin_easyssh_add_title", name),
                     SubTitle = services.T("plugin_easyssh_add_missing_command"),
-                    IcoPath = Icons.App,
+                    IcoPath = Icons.Add,
                     Glyph = Glyphs.Add,
                     Score = TopScore,
                     AutoCompleteText = context.Prefix + "add " + CommandLine.Quote(name) + " ",
@@ -336,7 +336,7 @@ internal sealed class QueryHandler(PluginServices services)
                 Title = services.T(existing is null ? "plugin_easyssh_add_title" : "plugin_easyssh_update_title", name),
                 SubTitle = command,
                 SubTitleToolTip = existing is null ? command : services.T("plugin_easyssh_update_previous", existing.Command),
-                IcoPath = Icons.Positive,
+                IcoPath = Icons.Add,
                 Glyph = existing is null ? Glyphs.Add : Glyphs.Save,
                 Score = TopScore,
                 AddSelectedCount = false,
@@ -472,7 +472,7 @@ internal sealed class QueryHandler(PluginServices services)
             {
                 Title = displayName,
                 SubTitle = isSelected ? services.T("plugin_easyssh_terminal_selected", description) : description,
-                IcoPath = isSelected ? Icons.Positive : available ? Icons.App : Icons.Negative,
+                IcoPath = isSelected ? Icons.Selected : available ? Icons.App : Icons.Warning,
                 Glyph = isSelected ? Glyphs.Selected : Glyphs.Terminal,
                 // Selected first, then installed terminals, then missing ones; shortcuts come after all of them.
                 Score = isSelected ? TopScore : (available ? TierSpacing : ShortcutScore * 10) - position++,
@@ -499,7 +499,7 @@ internal sealed class QueryHandler(PluginServices services)
         {
             results.Add(ChangeQueryResult(
                 services.T("plugin_easyssh_terminal_add_usage_title"), services.T("plugin_easyssh_terminal_add_usage_subtitle"),
-                context.Prefix + "terminal add ", Glyphs.Add, ShortcutScore + 2));
+                context.Prefix + "terminal add ", Glyphs.Add, ShortcutScore + 2, Icons.Add));
             if (data.Terminals.Count > 0)
             {
                 results.Add(ChangeQueryResult(
@@ -557,7 +557,7 @@ internal sealed class QueryHandler(PluginServices services)
             {
                 Title = services.T(existing is null ? "plugin_easyssh_terminal_add_title" : "plugin_easyssh_terminal_update_title", terminal.Name),
                 SubTitle = available ? description : services.T("plugin_easyssh_terminal_add_not_found", description),
-                IcoPath = available ? Icons.Positive : Icons.Negative,
+                IcoPath = available ? Icons.Add : Icons.Warning,
                 Glyph = Glyphs.Add,
                 Score = TopScore,
                 AddSelectedCount = false,
@@ -597,7 +597,7 @@ internal sealed class QueryHandler(PluginServices services)
             {
                 Title = terminal.Name,
                 SubTitle = Describe(terminal),
-                IcoPath = Icons.Negative,
+                IcoPath = Icons.Remove,
                 Glyph = Glyphs.Remove,
                 Score = TopScore - position++,
                 AddSelectedCount = false,
@@ -731,7 +731,7 @@ internal sealed class QueryHandler(PluginServices services)
             {
                 Title = services.T("plugin_easyssh_ctx_remove"),
                 SubTitle = profile.Command,
-                IcoPath = Icons.Negative,
+                IcoPath = Icons.Remove,
                 Glyph = Glyphs.Remove,
                 Action = _ => RemoveProfile(profile, fromContextMenu: true),
             },
@@ -750,7 +750,7 @@ internal sealed class QueryHandler(PluginServices services)
             {
                 Title = services.T("plugin_easyssh_ctx_save_profile"),
                 SubTitle = host.Command,
-                IcoPath = Icons.Positive,
+                IcoPath = Icons.Add,
                 Glyph = Glyphs.Save,
                 Action = _ =>
                 {
@@ -786,7 +786,7 @@ internal sealed class QueryHandler(PluginServices services)
             {
                 Title = services.T("plugin_easyssh_ctx_save_profile"),
                 SubTitle = item.Command,
-                IcoPath = Icons.Positive,
+                IcoPath = Icons.Add,
                 Glyph = Glyphs.Save,
                 Action = _ =>
                 {
@@ -839,13 +839,13 @@ internal sealed class QueryHandler(PluginServices services)
 
     private Result EmptyStateResult(QueryContext context) => ChangeQueryResult(
         services.T("plugin_easyssh_empty_title"), services.T("plugin_easyssh_empty_subtitle"),
-        context.Prefix + "add ", Glyphs.Add, TopScore);
+        context.Prefix + "add ", Glyphs.Add, TopScore, Icons.Add);
 
     private Result OpenSshMissingResult() => new()
     {
         Title = services.T("plugin_easyssh_ssh_missing_title"),
         SubTitle = services.T("plugin_easyssh_ssh_missing_subtitle"),
-        IcoPath = Icons.Negative,
+        IcoPath = Icons.Warning,
         Glyph = Glyphs.Warning,
         Score = WarningScore,
         AddSelectedCount = false,
@@ -871,11 +871,11 @@ internal sealed class QueryHandler(PluginServices services)
         },
     };
 
-    private Result ChangeQueryResult(string title, string subTitle, string query, GlyphInfo glyph, int score) => new()
+    private Result ChangeQueryResult(string title, string subTitle, string query, GlyphInfo glyph, int score, string icon = Icons.App) => new()
     {
         Title = title,
         SubTitle = subTitle,
-        IcoPath = Icons.App,
+        IcoPath = icon,
         Glyph = glyph,
         Score = score,
         AddSelectedCount = false,
