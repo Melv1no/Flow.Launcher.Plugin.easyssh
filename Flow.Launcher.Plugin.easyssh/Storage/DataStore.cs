@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 
 namespace Flow.Launcher.Plugin.EasySsh.Storage;
@@ -132,34 +131,8 @@ public sealed class DataStore
         return updated;
     }
 
-    private void Save(PluginData data)
-    {
-        Directory.CreateDirectory(DirectoryPath);
-        var temporaryPath = FilePath + ".tmp";
-        var json = JsonSerializer.Serialize(data with { Version = PluginData.CurrentVersion }, JsonOptions);
-        using (var stream = new FileStream(temporaryPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
-        using (var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
-        {
-            writer.Write(json);
-        }
-
-        if (!File.Exists(FilePath))
-        {
-            File.Move(temporaryPath, FilePath);
-            return;
-        }
-
-        try
-        {
-            File.Replace(temporaryPath, FilePath, BackupPath, ignoreMetadataErrors: true);
-        }
-        catch (Exception e) when (e is IOException or PlatformNotSupportedException)
-        {
-            // File.Replace is not supported everywhere (some network shares): fall back to copy + move.
-            File.Copy(FilePath, BackupPath, overwrite: true);
-            File.Move(temporaryPath, FilePath, overwrite: true);
-        }
-    }
+    private void Save(PluginData data) =>
+        AtomicFile.WriteText(FilePath, JsonSerializer.Serialize(data with { Version = PluginData.CurrentVersion }, JsonOptions), BackupPath);
 
     private static (PluginData Data, DataLoadStatus Status, string? DamagedCopy) Load(string path)
     {

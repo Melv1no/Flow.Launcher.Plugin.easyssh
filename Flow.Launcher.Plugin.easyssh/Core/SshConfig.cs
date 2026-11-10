@@ -3,7 +3,21 @@ using System.Text.RegularExpressions;
 namespace Flow.Launcher.Plugin.EasySsh.Core;
 
 /// <summary>A concrete host alias declared by a <c>Host</c> line of an OpenSSH client configuration.</summary>
-public sealed record SshConfigHost(string Alias, string? HostName, string? User, string? Port, string SourceFile)
+/// <param name="Alias">The name given to ssh.</param>
+/// <param name="HostName">Real host name, from the host's own block.</param>
+/// <param name="User">User name, from the host's own block.</param>
+/// <param name="Port">Port, from the host's own block.</param>
+/// <param name="ProxyJump">Jump host(s), from the host's own block.</param>
+/// <param name="IdentityFile">First identity file, from the host's own block.</param>
+/// <param name="SourceFile">Full path of the file declaring the host.</param>
+public sealed record SshConfigHost(
+    string Alias,
+    string? HostName,
+    string? User,
+    string? Port,
+    string? ProxyJump,
+    string? IdentityFile,
+    string SourceFile)
 {
     /// <summary>The command that connects to this host.</summary>
     public string Command => "ssh " + CommandLine.Quote(Alias);
@@ -34,17 +48,57 @@ public sealed class SshConfigSnapshot
 {
     private readonly IReadOnlyList<(string Path, DateTime? Stamp)> _sources;
 
-    internal SshConfigSnapshot(IReadOnlyList<SshConfigHost> hosts, IReadOnlyList<(string Path, DateTime? Stamp)> sources)
+    private readonly IReadOnlyList<IReadOnlyList<string>> _patternBlocks;
+    private readonly bool _matchesOriginalHost;
+
+    internal SshConfigSnapshot(
+        IReadOnlyList<SshConfigHost> hosts,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> duplicates,
+        IReadOnlyList<string> files,
+        IReadOnlyList<(string Path, DateTime? Stamp)> sources,
+        IReadOnlyList<IReadOnlyList<string>> patternBlocks,
+        bool matchesOriginalHost)
     {
         Hosts = hosts;
+        Duplicates = duplicates;
+        Files = files;
         _sources = sources;
+        _patternBlocks = patternBlocks;
+        _matchesOriginalHost = matchesOriginalHost;
     }
 
     /// <summary>An empty snapshot.</summary>
-    public static SshConfigSnapshot Empty { get; } = new([], []);
+    public static SshConfigSnapshot Empty { get; } = new([], new Dictionary<string, IReadOnlyList<string>>(), [], [], [], false);
 
-    /// <summary>Concrete hosts, in declaration order, without duplicates.</summary>
+    /// <summary>
+    /// Whether the <c>Host</c> blocks with patterns (<c>Host *.corp</c>, <c>Host * !bastion</c>) apply the same way
+    /// to both names. ssh matches them against the name typed, not against HostName: an alias <c>web</c> for
+    /// <c>web.corp</c> doesn't get the options of <c>Host *.corp</c>. With a <c>Match originalhost</c> block,
+    /// that can't be known, so the answer is no.
+    /// </summary>
+    public bool HaveSameRules(string name, string other)
+    {
+        if (name.Equals(other, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return !_matchesOriginalHost
+               && _patternBlocks.All(patterns => SshConfigParser.MatchesHostLine(patterns, name) == SshConfigParser.MatchesHostLine(patterns, other));
+    }
+
+    /// <summary>Concrete hosts, in declaration order, without duplicates (ssh uses the first declaration).</summary>
     public IReadOnlyList<SshConfigHost> Hosts { get; }
+
+    /// <summary>Aliases declared more than once, with the files of the declarations that ssh ignores.</summary>
+    public IReadOnlyDictionary<string, IReadOnlyList<string>> Duplicates { get; }
+
+    /// <summary>Configuration files that exist and were read, in reading order.</summary>
+    public IReadOnlyList<string> Files { get; }
+
+    /// <summary>Finds a host by alias (case-insensitive, as ssh does).</summary>
+    public SshConfigHost? Find(string? alias) =>
+        Hosts.FirstOrDefault(host => host.Alias.Equals(alias?.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Whether one of the files or folders read has changed since the snapshot was taken.</summary>
     public bool IsStale() => _sources.Any(source => SshConfigParser.Stamp(source.Path) != source.Stamp);
@@ -75,8 +129,46 @@ public static partial class SshConfigParser
         var context = new ParseContext(sshDirectory ?? Path.GetDirectoryName(Path.GetFullPath(configPath)) ?? string.Empty);
         ParseFile(Path.GetFullPath(configPath), 0, context);
         var hosts = context.Hosts.Select(builder => builder.Build()).ToArray();
-        return new SshConfigSnapshot(hosts, context.Sources);
+        var duplicates = context.Duplicates.ToDictionary(
+            pair => pair.Key,
+            pair => (IReadOnlyList<string>)pair.Value,
+            StringComparer.OrdinalIgnoreCase);
+        return new SshConfigSnapshot(hosts, duplicates, context.Files, context.Sources, context.PatternBlocks, context.MatchesOriginalHost);
     }
+
+    /// <summary>
+    /// Whether a <c>Host</c> line applies to <paramref name="host"/>, as ssh decides it: one of its patterns
+    /// matches (<c>*</c> and <c>?</c> are wildcards, case is ignored) and none of its negated patterns does.
+    /// </summary>
+    public static bool MatchesHostLine(IReadOnlyList<string> patterns, string host)
+    {
+        var matched = false;
+        foreach (var pattern in patterns)
+        {
+            var negated = pattern.StartsWith('!');
+            var expression = negated ? pattern[1..] : pattern;
+            if (expression.Length == 0 || !System.IO.Enumeration.FileSystemName.MatchesSimpleExpression(expression, host, ignoreCase: true))
+            {
+                continue;
+            }
+
+            if (negated)
+            {
+                return false;
+            }
+
+            matched = true;
+        }
+
+        return matched;
+    }
+
+    /// <summary>
+    /// The files an <c>Include</c> pattern designates: <c>~</c> and <c>${VAR}</c> expanded, relative paths
+    /// resolved in <paramref name="sshDirectory"/>, and wildcards in the file name expanded.
+    /// </summary>
+    public static IReadOnlyList<string> ResolveInclude(string pattern, string sshDirectory) =>
+        ExpandInclude(pattern, sshDirectory, watch: null);
 
     /// <summary>Last write time of a file or folder, or null when it doesn't exist.</summary>
     internal static DateTime? Stamp(string path)
@@ -107,27 +199,48 @@ public static partial class SshConfigParser
             return;
         }
 
+        context.Files.Add(path);
         List<HostBuilder>? block = null;
         foreach (var rawLine in lines)
         {
-            var line = rawLine.Trim();
-            if (line.Length == 0 || line[0] == '#')
+            if (SshConfigText.IsTrivia(rawLine))
             {
                 continue;
             }
 
-            var (keyword, arguments) = SplitDirective(line);
+            var (keyword, arguments) = SshConfigText.SplitDirective(rawLine);
             switch (keyword.ToLowerInvariant())
             {
                 case "host":
                     block = [];
-                    foreach (var pattern in CommandLine.Tokenize(arguments).Select(token => token.Value))
+                    var patterns = SshConfigText.Split(arguments);
+                    if (patterns.Any(pattern => !IsConcreteAlias(pattern)))
                     {
-                        if (IsConcreteAlias(pattern) && context.Aliases.Add(pattern))
+                        context.PatternBlocks.Add(patterns);
+                    }
+
+                    foreach (var pattern in patterns)
+                    {
+                        if (!IsConcreteAlias(pattern))
+                        {
+                            continue;
+                        }
+
+                        if (context.Aliases.Add(pattern))
                         {
                             var host = new HostBuilder(pattern, path);
                             context.Hosts.Add(host);
                             block.Add(host);
+                        }
+                        else
+                        {
+                            if (!context.Duplicates.TryGetValue(pattern, out var files))
+                            {
+                                files = [];
+                                context.Duplicates[pattern] = files;
+                            }
+
+                            files.Add(path);
                         }
                     }
 
@@ -135,12 +248,13 @@ public static partial class SshConfigParser
 
                 case "match":
                     block = null;
+                    context.MatchesOriginalHost |= arguments.Contains("originalhost", StringComparison.OrdinalIgnoreCase);
                     break;
 
                 case "include":
-                    foreach (var pattern in CommandLine.Tokenize(arguments).Select(token => token.Value))
+                    foreach (var pattern in SshConfigText.Split(arguments))
                     {
-                        foreach (var file in ExpandInclude(pattern, context))
+                        foreach (var file in ExpandInclude(pattern, context.SshDirectory, context.Sources))
                         {
                             ParseFile(file, depth + 1, context);
                         }
@@ -149,47 +263,32 @@ public static partial class SshConfigParser
                     break;
 
                 case "hostname":
-                    block?.ForEach(host => host.HostName ??= FirstValue(arguments));
+                    block?.ForEach(host => host.HostName ??= SshConfigText.FirstToken(arguments));
                     break;
 
                 case "user":
-                    block?.ForEach(host => host.User ??= FirstValue(arguments));
+                    block?.ForEach(host => host.User ??= SshConfigText.FirstToken(arguments));
                     break;
 
                 case "port":
-                    block?.ForEach(host => host.Port ??= FirstValue(arguments));
+                    block?.ForEach(host => host.Port ??= SshConfigText.FirstToken(arguments));
+                    break;
+
+                case "proxyjump":
+                    block?.ForEach(host => host.ProxyJump ??= SshConfigText.FirstToken(arguments));
+                    break;
+
+                case "identityfile":
+                    block?.ForEach(host => host.IdentityFile ??= SshConfigText.FirstToken(arguments));
                     break;
             }
         }
     }
 
-    private static (string Keyword, string Arguments) SplitDirective(string line)
-    {
-        var end = 0;
-        while (end < line.Length && !char.IsWhiteSpace(line[end]) && line[end] != '=')
-        {
-            end++;
-        }
-
-        var rest = line[end..].TrimStart();
-        if (rest.StartsWith('='))
-        {
-            rest = rest[1..].TrimStart();
-        }
-
-        return (line[..end], rest);
-    }
-
-    private static string? FirstValue(string arguments)
-    {
-        var tokens = CommandLine.Tokenize(arguments);
-        return tokens.Count > 0 && tokens[0].Value.Length > 0 ? tokens[0].Value : null;
-    }
-
     private static bool IsConcreteAlias(string pattern) =>
         pattern.Length > 0 && !pattern.StartsWith('!') && pattern.IndexOfAny(['*', '?']) < 0;
 
-    private static IEnumerable<string> ExpandInclude(string pattern, ParseContext context)
+    private static IReadOnlyList<string> ExpandInclude(string pattern, string sshDirectory, List<(string Path, DateTime? Stamp)>? watch)
     {
         var expanded = EnvironmentVariable().Replace(pattern, match =>
             Environment.GetEnvironmentVariable(match.Groups[1].Value) ?? string.Empty);
@@ -201,7 +300,7 @@ public static partial class SshConfigParser
         string fullPath;
         try
         {
-            fullPath = Path.GetFullPath(Path.IsPathRooted(expanded) ? expanded : Path.Combine(context.SshDirectory, expanded));
+            fullPath = Path.GetFullPath(Path.IsPathRooted(expanded) ? expanded : Path.Combine(sshDirectory, expanded));
         }
         catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
         {
@@ -221,7 +320,7 @@ public static partial class SshConfigParser
         }
 
         // Watching the folder lets the cache notice files added to or removed from it.
-        context.Sources.Add((directory, Stamp(directory)));
+        watch?.Add((directory, Stamp(directory)));
         if (!Directory.Exists(directory))
         {
             return [];
@@ -248,9 +347,17 @@ public static partial class SshConfigParser
 
         public HashSet<string> Aliases { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+        public Dictionary<string, List<string>> Duplicates { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         public HashSet<string> Visited { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+        public List<string> Files { get; } = [];
+
         public List<(string Path, DateTime? Stamp)> Sources { get; } = [];
+
+        public List<IReadOnlyList<string>> PatternBlocks { get; } = [];
+
+        public bool MatchesOriginalHost { get; set; }
     }
 
     private sealed class HostBuilder(string alias, string sourceFile)
@@ -261,6 +368,10 @@ public static partial class SshConfigParser
 
         public string? Port { get; set; }
 
-        public SshConfigHost Build() => new(alias, HostName, User, Port, sourceFile);
+        public string? ProxyJump { get; set; }
+
+        public string? IdentityFile { get; set; }
+
+        public SshConfigHost Build() => new(alias, HostName, User, Port, ProxyJump, IdentityFile, sourceFile);
     }
 }

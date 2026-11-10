@@ -189,17 +189,23 @@ public static partial class LaunchPlanBuilder
 /// <summary>Starts terminals.</summary>
 public static class TerminalLauncher
 {
-    /// <summary>Starts <paramref name="plan"/> in <paramref name="workingDirectory"/>.</summary>
-    /// <exception cref="FileNotFoundException">The terminal program can't be found.</exception>
-    public static void Launch(LaunchPlan plan, string workingDirectory)
+    /// <summary>The process that runs <paramref name="plan"/> in <paramref name="workingDirectory"/>.</summary>
+    /// <exception cref="FileNotFoundException">The program can't be found.</exception>
+    public static ProcessStartInfo CreateStartInfo(LaunchPlan plan, string workingDirectory)
     {
         var fileName = ExecutableResolver.Resolve(plan.FileName)
                        ?? throw new FileNotFoundException($"\"{plan.FileName}\" was not found.", plan.FileName);
-        var startInfo = new ProcessStartInfo(fileName, plan.Arguments)
+        return new ProcessStartInfo(fileName, plan.Arguments)
         {
             UseShellExecute = true,
             WorkingDirectory = Directory.Exists(workingDirectory) ? workingDirectory : string.Empty,
         };
-        using var process = Process.Start(startInfo);
+    }
+
+    /// <summary>Starts <paramref name="plan"/> in <paramref name="workingDirectory"/>.</summary>
+    /// <exception cref="FileNotFoundException">The program can't be found.</exception>
+    public static void Launch(LaunchPlan plan, string workingDirectory)
+    {
+        using var process = Process.Start(CreateStartInfo(plan, workingDirectory));
     }
 }

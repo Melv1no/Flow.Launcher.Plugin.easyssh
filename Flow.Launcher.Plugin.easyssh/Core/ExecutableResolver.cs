@@ -68,6 +68,48 @@ public static class ExecutableResolver
         return null;
     }
 
+    /// <summary>
+    /// Whether <paramref name="path"/> is a graphical program (PuTTY, KiTTY, WinSCP…): it opens its own window,
+    /// so starting it in a terminal would leave an empty console open behind it.
+    /// </summary>
+    public static bool IsGuiApplication(string path)
+    {
+        const ushort DosSignature = 0x5A4D; // "MZ"
+        const uint PeSignature = 0x00004550; // "PE\0\0"
+        const ushort WindowsGuiSubsystem = 2;
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new BinaryReader(stream);
+            if (stream.Length < 0x40 || reader.ReadUInt16() != DosSignature)
+            {
+                return false;
+            }
+
+            stream.Position = 0x3C;
+            var peOffset = reader.ReadInt32();
+            // Signature (4) + file header (20) + the optional header fields before Subsystem (68), same in PE32 and PE32+.
+            var subsystemOffset = (long)peOffset + 4 + 20 + 68;
+            if (peOffset <= 0 || subsystemOffset + 2 > stream.Length)
+            {
+                return false;
+            }
+
+            stream.Position = peOffset;
+            if (reader.ReadUInt32() != PeSignature)
+            {
+                return false;
+            }
+
+            stream.Position = subsystemOffset;
+            return reader.ReadUInt16() == WindowsGuiSubsystem;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>Whether the OpenSSH client (ssh.exe) is available.</summary>
     public static bool IsOpenSshInstalled() =>
         Resolve("ssh.exe") is not null

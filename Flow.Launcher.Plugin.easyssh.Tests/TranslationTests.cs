@@ -58,7 +58,7 @@ public partial class TranslationTests
 
         // Keys built at runtime.
         used.UnionWith(BuiltInTerminals.All.Select(terminal => "plugin_easyssh_terminal_" + terminal.Name));
-        foreach (var verb in new[] { "add", "edit", "remove", "profiles", "direct", "terminal", "config" })
+        foreach (var verb in Enum.GetNames<Verb>().Select(name => name.ToLowerInvariant()))
         {
             used.Add($"plugin_easyssh_cmd_{verb}_title");
             used.Add($"plugin_easyssh_cmd_{verb}_subtitle");

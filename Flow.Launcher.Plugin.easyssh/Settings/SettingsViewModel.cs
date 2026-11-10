@@ -14,6 +14,18 @@ namespace Flow.Launcher.Plugin.EasySsh.Settings;
 /// <param name="Label">Display name, with a note when the program can't be found.</param>
 internal sealed record TerminalOption(TerminalDefinition Terminal, string Label);
 
+/// <summary>A host as listed in the settings.</summary>
+/// <param name="Host">The host.</param>
+/// <param name="Target">Where it connects (<c>admin@10.0.0.5:2222</c>).</param>
+/// <param name="File">The file declaring it, for display.</param>
+/// <param name="State">"Hidden", or empty.</param>
+/// <param name="IsManaged">Whether EasySSH can change it (it is declared in <c>easyssh.config</c>).</param>
+/// <param name="IsHidden">Whether it is hidden from the results.</param>
+internal sealed record HostRow(SshConfigHost Host, string Target, string File, string State, bool IsManaged, bool IsHidden)
+{
+    public string Alias => Host.Alias;
+}
+
 /// <summary>State and actions of the settings panel.</summary>
 internal sealed class SettingsViewModel : INotifyPropertyChanged
 {
@@ -28,11 +40,21 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
     private string _terminalName = string.Empty;
     private string _terminalExecutable = string.Empty;
     private string _terminalArguments = string.Empty;
-    private SshProfile? _selectedProfile;
-    private bool _isEditingProfile;
-    private string? _profileBeingEdited;
-    private string _profileName = string.Empty;
-    private string _profileCommand = string.Empty;
+    private HostRow? _selectedHost;
+    private bool _isEditingHost;
+    private string? _hostBeingEdited;
+    private string _hostAlias = string.Empty;
+    private string _hostName = string.Empty;
+    private string _hostUser = string.Empty;
+    private string _hostPort = string.Empty;
+    private string _hostIdentityFile = string.Empty;
+    private string _hostProxyJump = string.Empty;
+    private string _hostOtherOptions = string.Empty;
+    private SavedCommand? _selectedCommand;
+    private bool _isEditingCommand;
+    private string? _commandBeingEdited;
+    private string _commandName = string.Empty;
+    private string _commandText = string.Empty;
     private string _status = string.Empty;
 
     public SettingsViewModel(PluginServices services)
@@ -81,14 +103,14 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    public bool ShowSshConfigHosts
+    public bool SuggestKnownHosts
     {
-        get => _services.Store.Data.ShowSshConfigHosts;
+        get => _services.Store.Data.SuggestKnownHosts;
         set
         {
-            if (!_refreshing && value != ShowSshConfigHosts)
+            if (!_refreshing && value != SuggestKnownHosts)
             {
-                Apply(data => data with { ShowSshConfigHosts = value });
+                Apply(data => data with { SuggestKnownHosts = value });
             }
 
             OnPropertyChanged();
@@ -204,7 +226,7 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
 
     public void DeleteTerminal()
     {
-        if (SelectedCustomTerminal is not { } terminal || !Confirm(terminal.Name))
+        if (SelectedCustomTerminal is not { } terminal || !Confirm(T("plugin_easyssh_settings_delete_confirm", terminal.Name)))
         {
             return;
         }
@@ -216,69 +238,322 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    // ------------------------------------------------------------------ profiles
+    // ------------------------------------------------------------------ hosts
 
-    public ObservableCollection<SshProfile> Profiles { get; } = [];
+    public ObservableCollection<HostRow> Hosts { get; } = [];
 
-    public SshProfile? SelectedProfile
+    public HostRow? SelectedHost
     {
-        get => _selectedProfile;
+        get => _selectedHost;
         set
         {
-            if (SetField(ref _selectedProfile, value))
+            if (SetField(ref _selectedHost, value))
             {
-                OnPropertyChanged(nameof(HasSelectedProfile));
+                OnPropertyChanged(nameof(HasSelectedHost));
+                OnPropertyChanged(nameof(CanDeleteHost));
+                OnPropertyChanged(nameof(HideButtonLabel));
             }
         }
     }
 
-    public bool HasSelectedProfile => _selectedProfile is not null;
+    public bool HasSelectedHost => _selectedHost is not null;
 
-    public bool IsEditingProfile
+    /// <summary>Only hosts of easyssh.config can be deleted from here; the others are in the user's own files.</summary>
+    public bool CanDeleteHost => _selectedHost is { IsManaged: true };
+
+    public string HideButtonLabel => T(_selectedHost is { IsHidden: true } ? "plugin_easyssh_settings_show" : "plugin_easyssh_settings_hide");
+
+    public bool IsEditingHost
     {
-        get => _isEditingProfile;
-        private set => SetField(ref _isEditingProfile, value);
+        get => _isEditingHost;
+        private set => SetField(ref _isEditingHost, value);
     }
 
-    public string ProfileName
+    public string HostAlias
     {
-        get => _profileName;
-        set => SetField(ref _profileName, value);
+        get => _hostAlias;
+        set => SetField(ref _hostAlias, value);
     }
 
-    public string ProfileCommand
+    public string HostName
     {
-        get => _profileCommand;
-        set => SetField(ref _profileCommand, value);
+        get => _hostName;
+        set => SetField(ref _hostName, value);
     }
 
-    public void NewProfile()
+    public string HostUser
     {
-        _profileBeingEdited = null;
-        ProfileName = string.Empty;
-        ProfileCommand = string.Empty;
-        IsEditingProfile = true;
+        get => _hostUser;
+        set => SetField(ref _hostUser, value);
+    }
+
+    public string HostPort
+    {
+        get => _hostPort;
+        set => SetField(ref _hostPort, value);
+    }
+
+    public string HostIdentityFile
+    {
+        get => _hostIdentityFile;
+        set => SetField(ref _hostIdentityFile, value);
+    }
+
+    public string HostProxyJump
+    {
+        get => _hostProxyJump;
+        set => SetField(ref _hostProxyJump, value);
+    }
+
+    /// <summary>Other options, one <c>Keyword value</c> per line.</summary>
+    public string HostOtherOptions
+    {
+        get => _hostOtherOptions;
+        set => SetField(ref _hostOtherOptions, value);
+    }
+
+    public void NewHost()
+    {
+        _hostBeingEdited = null;
+        HostAlias = string.Empty;
+        HostName = string.Empty;
+        HostUser = string.Empty;
+        HostPort = string.Empty;
+        HostIdentityFile = string.Empty;
+        HostProxyJump = string.Empty;
+        HostOtherOptions = string.Empty;
+        IsEditingHost = true;
         Status = string.Empty;
     }
 
-    public void EditProfile()
+    /// <summary>Edits a host of easyssh.config; a host of another file is opened in the text editor instead.</summary>
+    public void EditHost()
     {
-        if (SelectedProfile is not { } profile)
+        if (SelectedHost is not { } row)
         {
             return;
         }
 
-        _profileBeingEdited = profile.Name;
-        ProfileName = profile.Name;
-        ProfileCommand = profile.Command;
-        IsEditingProfile = true;
+        SshHostEntry? entry = null;
+        if (row.IsManaged)
+        {
+            try
+            {
+                entry = _services.Files.ReadManaged().Find(row.Alias);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                Fail(e.Message);
+                return;
+            }
+        }
+
+        if (entry is null)
+        {
+            _services.OpenFile(row.Host.SourceFile);
+            Status = T("plugin_easyssh_settings_opened_file", row.Alias, row.File);
+            return;
+        }
+
+        _hostBeingEdited = entry.Alias;
+        HostAlias = entry.Alias;
+        var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var others = new List<string>();
+        foreach (var option in entry.Options)
+        {
+            if (EditorKeywords.Contains(option.Keyword) && !fields.ContainsKey(option.Keyword))
+            {
+                fields[option.Keyword] = option.FirstValue;
+            }
+            else
+            {
+                others.Add(option.ToString());
+            }
+        }
+
+        HostName = fields.GetValueOrDefault("HostName", string.Empty);
+        HostUser = fields.GetValueOrDefault("User", string.Empty);
+        HostPort = fields.GetValueOrDefault("Port", string.Empty);
+        HostIdentityFile = fields.GetValueOrDefault("IdentityFile", string.Empty);
+        HostProxyJump = fields.GetValueOrDefault("ProxyJump", string.Empty);
+        HostOtherOptions = string.Join(Environment.NewLine, others);
+        IsEditingHost = true;
         Status = string.Empty;
     }
 
-    public bool SaveProfile()
+    public bool SaveHost()
     {
-        var name = ProfileName.Trim();
-        var command = SshCommand.Normalize(ProfileCommand);
+        var alias = HostAlias.Trim();
+        if (!SshConfigText.IsValidAlias(alias))
+        {
+            return Fail(T("plugin_easyssh_settings_error_alias"));
+        }
+
+        var port = HostPort.Trim();
+        if (port.Length > 0 && !SshCommandConverter.IsPort(port))
+        {
+            return Fail(T("plugin_easyssh_settings_error_port"));
+        }
+
+        foreach (var (label, value) in new[] { ("HostName", HostName), ("ProxyJump", HostProxyJump), ("User", HostUser), ("IdentityFile", HostIdentityFile) })
+        {
+            var spacesAllowed = label is "User" or "IdentityFile";
+            if (value.Contains('"') || (!spacesAllowed && value.Trim().Any(char.IsWhiteSpace)))
+            {
+                return Fail(T("plugin_easyssh_settings_error_value", label));
+            }
+        }
+
+        var existing = _services.SshConfig.GetSnapshot().Find(alias);
+        var isNewName = _hostBeingEdited is null || !alias.Equals(_hostBeingEdited, StringComparison.OrdinalIgnoreCase);
+        if (isNewName && existing is not null)
+        {
+            return Fail(T("plugin_easyssh_settings_error_host_exists", alias, _services.DisplayPath(existing.SourceFile)));
+        }
+
+        var options = new List<SshOption>();
+        AddField(options, "HostName", HostName);
+        AddField(options, "User", HostUser);
+        AddField(options, "Port", port);
+        AddField(options, "IdentityFile", HostIdentityFile.Trim().Length > 0 ? SshConfigText.NormalizePath(HostIdentityFile) : string.Empty);
+        AddField(options, "ProxyJump", HostProxyJump);
+        foreach (var line in HostOtherOptions.Split('\n'))
+        {
+            if (SshConfigText.IsTrivia(line))
+            {
+                continue;
+            }
+
+            var (keyword, value) = SshConfigText.SplitDirective(line);
+            var option = new SshOption(keyword, value);
+            if (!ManagedConfig.IsValidOption(option))
+            {
+                return Fail(T("plugin_easyssh_settings_error_option", line.Trim()));
+            }
+
+            options.Add(option);
+        }
+
+        var host = new SshHostEntry(alias, options);
+        var error = _services.ChangeHosts(config => config.Upsert(host, _hostBeingEdited));
+        if (error is not null)
+        {
+            return Fail(error);
+        }
+
+        IsEditingHost = false;
+        RefreshIfDetached();
+        Status = T("plugin_easyssh_settings_host_saved", alias, _services.DisplayPath(_services.Files.ManagedPath));
+        return true;
+    }
+
+    public void CancelHost() => IsEditingHost = false;
+
+    public void DeleteHost()
+    {
+        if (SelectedHost is not { IsManaged: true } row
+            || !Confirm(T("plugin_easyssh_remove_host_confirm", row.Alias, row.File)))
+        {
+            return;
+        }
+
+        var error = _services.ChangeHosts(config =>
+        {
+            if (!config.Remove(row.Alias))
+            {
+                throw new ArgumentException(T("plugin_easyssh_host_not_managed", row.Alias, ManagedConfigPath));
+            }
+        });
+        if (error is not null)
+        {
+            Fail(error);
+            return;
+        }
+
+        IsEditingHost = false;
+        RefreshIfDetached();
+        Status = T("plugin_easyssh_settings_deleted", row.Alias);
+    }
+
+    public void ToggleHidden()
+    {
+        if (SelectedHost is { } row && Apply(data => data.SetHidden(row.Alias, !row.IsHidden)))
+        {
+            Status = T(row.IsHidden ? "plugin_easyssh_settings_shown" : "plugin_easyssh_settings_hidden", row.Alias);
+        }
+    }
+
+    public void OpenHostFile()
+    {
+        if (SelectedHost is { } row)
+        {
+            _services.OpenFile(row.Host.SourceFile);
+        }
+    }
+
+    // ------------------------------------------------------------------ saved commands
+
+    public ObservableCollection<SavedCommand> Commands { get; } = [];
+
+    public SavedCommand? SelectedCommand
+    {
+        get => _selectedCommand;
+        set
+        {
+            if (SetField(ref _selectedCommand, value))
+            {
+                OnPropertyChanged(nameof(HasSelectedCommand));
+            }
+        }
+    }
+
+    public bool HasSelectedCommand => _selectedCommand is not null;
+
+    public bool IsEditingCommand
+    {
+        get => _isEditingCommand;
+        private set => SetField(ref _isEditingCommand, value);
+    }
+
+    public string CommandName
+    {
+        get => _commandName;
+        set => SetField(ref _commandName, value);
+    }
+
+    public string CommandText
+    {
+        get => _commandText;
+        set => SetField(ref _commandText, value);
+    }
+
+    public void NewCommand()
+    {
+        _commandBeingEdited = null;
+        CommandName = string.Empty;
+        CommandText = string.Empty;
+        IsEditingCommand = true;
+        Status = string.Empty;
+    }
+
+    public void EditCommand()
+    {
+        if (SelectedCommand is not { } command)
+        {
+            return;
+        }
+
+        _commandBeingEdited = command.Name;
+        CommandName = command.Name;
+        CommandText = command.Command;
+        IsEditingCommand = true;
+        Status = string.Empty;
+    }
+
+    public bool SaveCommand()
+    {
+        var name = CommandName.Trim();
+        var command = SshCommand.Normalize(CommandText);
         if (name.Length == 0)
         {
             return Fail(T("plugin_easyssh_settings_error_name"));
@@ -289,44 +564,45 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
             return Fail(T("plugin_easyssh_settings_error_command"));
         }
 
-        var renamedOnto = !PluginDataOperations.NameComparer.Equals(name, _profileBeingEdited ?? name);
-        var exists = _services.Store.Data.FindProfile(name) is not null;
-        if ((_profileBeingEdited is null || renamedOnto) && exists)
+        var renamedOnto = !PluginDataOperations.NameComparer.Equals(name, _commandBeingEdited ?? name);
+        if ((_commandBeingEdited is null || renamedOnto) && _services.Store.Data.FindCommand(name) is not null)
         {
             return Fail(T("plugin_easyssh_settings_error_duplicate", name));
         }
 
-        if (!Apply(data => data.UpsertProfile(new SshProfile(name, command), _profileBeingEdited)))
+        if (!Apply(data => data.UpsertCommand(new SavedCommand(name, command), _commandBeingEdited)))
         {
             return false;
         }
 
-        IsEditingProfile = false;
+        IsEditingCommand = false;
         Status = T("plugin_easyssh_settings_saved");
         return true;
     }
 
-    public void CancelProfile() => IsEditingProfile = false;
+    public void CancelCommand() => IsEditingCommand = false;
 
-    public void DeleteProfile()
+    public void DeleteCommand()
     {
-        if (SelectedProfile is not { } profile || !Confirm(profile.Name))
+        if (SelectedCommand is not { } command || !Confirm(T("plugin_easyssh_settings_delete_confirm", command.Name)))
         {
             return;
         }
 
-        if (Apply(data => data.RemoveProfile(profile.Name)))
+        if (Apply(data => data.RemoveCommand(command.Name)))
         {
-            IsEditingProfile = false;
-            Status = T("plugin_easyssh_settings_deleted", profile.Name);
+            IsEditingCommand = false;
+            Status = T("plugin_easyssh_settings_deleted", command.Name);
         }
     }
 
     // ------------------------------------------------------------------ files & import
 
-    public string DataFilePath => _services.Store.FilePath;
+    public string MainConfigPath => _services.DisplayPath(_services.Files.MainConfigPath);
 
-    public string SshConfigPath => _services.SshConfig.ConfigPath;
+    public string ManagedConfigPath => _services.DisplayPath(_services.Files.ManagedPath);
+
+    public string DataFilePath => _services.Store.FilePath;
 
     public string Status
     {
@@ -341,6 +617,10 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
     }
 
     public bool HasStatus => _status.Length > 0;
+
+    public void OpenMainConfig() => _services.OpenFile(_services.Files.MainConfigPath);
+
+    public void OpenManagedConfig() => _services.OpenFile(_services.Files.ManagedPath);
 
     public void ImportLegacy()
     {
@@ -363,15 +643,16 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
             return;
         }
 
-        var added = (Profiles: 0, Terminals: 0);
-        if (Apply(data =>
-            {
-                var merged = LegacyImporter.Merge(data, legacy);
-                added = (merged.AddedProfiles, merged.AddedTerminals);
-                return merged.Data;
-            }))
+        try
         {
-            Status = T("plugin_easyssh_import_done", added.Profiles, added.Terminals, path);
+            var (result, includeAdded) = _services.ImportLegacy(legacy, path);
+            RefreshIfDetached();
+            Status = Main.DescribeImport(_services, result, includeAdded, path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            _services.Log($"Could not import {path}", e);
+            Fail(e.Message);
         }
     }
 
@@ -388,15 +669,15 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    public void OpenSshConfig() => _services.OpenFile(SshConfigPath);
-
     // ------------------------------------------------------------------ synchronization
 
     /// <summary>Starts following changes made elsewhere (e.g. from the search bar).</summary>
     public void Attach()
     {
-        _services.Store.Changed -= OnStoreChanged;
-        _services.Store.Changed += OnStoreChanged;
+        _services.Store.Changed -= OnChanged;
+        _services.Store.Changed += OnChanged;
+        _services.HostsChanged -= OnChanged;
+        _services.HostsChanged += OnChanged;
         _attached = true;
         Refresh();
     }
@@ -404,11 +685,12 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
     /// <summary>Stops following changes (the panel is closed).</summary>
     public void Detach()
     {
-        _services.Store.Changed -= OnStoreChanged;
+        _services.Store.Changed -= OnChanged;
+        _services.HostsChanged -= OnChanged;
         _attached = false;
     }
 
-    /// <summary>Reloads the lists from the store, keeping the selections.</summary>
+    /// <summary>Reloads the lists, keeping the selections.</summary>
     public void Refresh()
     {
         _refreshing = true;
@@ -441,17 +723,35 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
 
             SelectedCustomTerminal = CustomTerminals.FirstOrDefault(terminal => terminal.Name == customName);
 
-            var profileName = SelectedProfile?.Name;
-            Profiles.Clear();
-            foreach (var profile in data.Profiles.OrderBy(profile => TextFolding.Fold(profile.Name), StringComparer.Ordinal))
+            var hostAlias = SelectedHost?.Alias;
+            Hosts.Clear();
+            var hidden = T("plugin_easyssh_settings_hidden_state");
+            foreach (var host in _services.SshConfig.GetHosts().OrderBy(host => TextFolding.Fold(host.Alias), StringComparer.Ordinal))
             {
-                Profiles.Add(profile);
+                var isHidden = data.IsHidden(host.Alias);
+                Hosts.Add(new HostRow(
+                    host,
+                    host.Target ?? string.Empty,
+                    _services.DisplayPath(host.SourceFile),
+                    isHidden ? hidden : string.Empty,
+                    _services.IsManaged(host),
+                    isHidden));
             }
 
-            SelectedProfile = Profiles.FirstOrDefault(profile => profile.Name == profileName);
+            SelectedHost = Hosts.FirstOrDefault(row => row.Alias == hostAlias);
+
+            var commandName = SelectedCommand?.Name;
+            Commands.Clear();
+            foreach (var command in data.Commands.OrderBy(command => TextFolding.Fold(command.Name), StringComparer.Ordinal))
+            {
+                Commands.Add(command);
+            }
+
+            SelectedCommand = Commands.FirstOrDefault(command => command.Name == commandName);
 
             OnPropertyChanged(nameof(KeepWindowOpenOnError));
-            OnPropertyChanged(nameof(ShowSshConfigHosts));
+            OnPropertyChanged(nameof(SuggestKnownHosts));
+            OnPropertyChanged(nameof(HideButtonLabel));
         }
         finally
         {
@@ -459,7 +759,21 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    private void OnStoreChanged(object? sender, EventArgs e)
+    private static readonly HashSet<string> EditorKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "HostName", "User", "Port", "IdentityFile", "ProxyJump",
+    };
+
+    private static void AddField(List<SshOption> options, string keyword, string value)
+    {
+        var trimmed = value.Trim();
+        if (trimmed.Length > 0)
+        {
+            options.Add(SshOption.Single(keyword, trimmed));
+        }
+    }
+
+    private void OnChanged(object? sender, EventArgs e)
     {
         if (_dispatcher.CheckAccess())
         {
@@ -473,17 +787,21 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
 
     // ------------------------------------------------------------------ helpers
 
+    private void RefreshIfDetached()
+    {
+        if (!_attached)
+        {
+            // When attached, the change events already refresh the lists.
+            Refresh();
+        }
+    }
+
     private bool Apply(Func<PluginData, PluginData> change)
     {
         try
         {
             _services.Store.Update(change);
-            if (!_attached)
-            {
-                // When attached, the Changed event already refreshes the lists.
-                Refresh();
-            }
-
+            RefreshIfDetached();
             return true;
         }
         catch (ArgumentException e)
@@ -497,9 +815,9 @@ internal sealed class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
-    private bool Confirm(string name) =>
+    private bool Confirm(string message) =>
         _services.Api.ShowMsgBox(
-            T("plugin_easyssh_settings_delete_confirm", name),
+            message,
             T("plugin_easyssh_plugin_name"),
             MessageBoxButton.YesNo,
             MessageBoxImage.Question,

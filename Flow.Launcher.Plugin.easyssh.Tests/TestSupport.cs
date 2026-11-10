@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Xml.Linq;
+using Flow.Launcher.Plugin.EasySsh.Core;
 using Flow.Launcher.Plugin.EasySsh.Storage;
 using NSubstitute;
 
@@ -90,7 +92,7 @@ internal static class FakeApi
     }
 }
 
-/// <summary>A plugin initialized on temporary folders.</summary>
+/// <summary>A plugin initialized on temporary folders: the real ~/.ssh is never read nor written.</summary>
 internal sealed class PluginFixture : IDisposable
 {
     public PluginFixture(Action<TempDirectory>? arrange = null)
@@ -99,8 +101,9 @@ internal sealed class PluginFixture : IDisposable
         Plugin.Initialize(Api, DataDirectory, LegacyPath, SshConfigPath);
         if (Plugin.Services is { } services)
         {
-            // Results must not depend on the machine running the tests.
+            // Results must not depend on the machine running the tests, and nothing must be started.
             services.OpenSshInstalled = true;
+            services.StartProcess = Started.Add;
         }
     }
 
@@ -110,15 +113,39 @@ internal sealed class PluginFixture : IDisposable
 
     public Main Plugin { get; } = new();
 
+    /// <summary>Processes the plugin asked to start.</summary>
+    public List<ProcessStartInfo> Started { get; } = [];
+
     public string DataDirectory => Temp.Combine("data");
 
     public string LegacyPath => Temp.Combine("ssh", "profiles.json");
 
     public string SshConfigPath => Temp.Combine("ssh", "config");
 
+    public string ManagedPath => Temp.Combine("ssh", "easyssh.config");
+
+    public string KnownHostsPath => Temp.Combine("ssh", "known_hosts");
+
     public PluginServices Services => Plugin.Services ?? throw new InvalidOperationException("Plugin not initialized", Plugin.InitError);
 
     public PluginData Data => Services.Store.Data;
+
+    /// <summary>Writes the (temporary) ~/.ssh/config and makes the plugin read it again.</summary>
+    public void WriteConfig(string text)
+    {
+        Temp.Write(Path.Combine("ssh", "config"), text);
+        Services.SshConfig.Invalidate();
+    }
+
+    /// <summary>Writes a file of the (temporary) ~/.ssh folder and makes the plugin read the configuration again.</summary>
+    public void WriteSshFile(string name, string text)
+    {
+        Temp.Write(Path.Combine("ssh", name), text);
+        Services.SshConfig.Invalidate();
+    }
+
+    /// <summary>Hosts of the managed file.</summary>
+    public IReadOnlyList<SshHostEntry> ManagedHosts => File.Exists(ManagedPath) ? ManagedConfig.Parse(File.ReadAllText(ManagedPath)).Hosts : [];
 
     /// <summary>Runs a query the way Flow Launcher does, results sorted by score.</summary>
     public List<Result> Query(string search, string actionKeyword = "ssh") =>

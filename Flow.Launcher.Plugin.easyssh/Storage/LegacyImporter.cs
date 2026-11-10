@@ -16,19 +16,30 @@ public enum LegacyFormat
     Version2,
 }
 
+/// <summary>A profile of EasySSH 1.x: a name and its command (normalized, see <see cref="SshCommand.Normalize"/>).</summary>
+public sealed record LegacyProfile(string Name, string Command);
+
 /// <summary>What was found in a legacy file.</summary>
 public sealed record LegacyData(
     LegacyFormat Format,
-    IReadOnlyList<SshProfile> Profiles,
+    IReadOnlyList<LegacyProfile> Profiles,
     IReadOnlyList<TerminalDefinition> Terminals,
     string? SelectedTerminal);
 
-/// <summary>Result of merging legacy data into the current data.</summary>
-public sealed record LegacyMergeResult(PluginData Data, int AddedProfiles, int AddedTerminals);
+/// <summary>What an import added.</summary>
+/// <param name="Data">The plugin data with the commands and terminals added.</param>
+/// <param name="AddedHosts">Aliases of the hosts added to the managed ssh_config file.</param>
+/// <param name="AddedCommands">Number of saved commands added.</param>
+/// <param name="AddedTerminals">Number of terminals added.</param>
+public sealed record LegacyImportResult(PluginData Data, IReadOnlyList<string> AddedHosts, int AddedCommands, int AddedTerminals)
+{
+    /// <summary>Whether anything was added.</summary>
+    public bool AddedAnything => AddedHosts.Count + AddedCommands + AddedTerminals > 0;
+}
 
 /// <summary>
-/// Reads the data of EasySSH 1.x (<c>%USERPROFILE%\.ssh\profiles.json</c>) so it can be merged into the
-/// current data. The legacy file is only read, never modified.
+/// Reads the data of EasySSH 1.x (<c>%USERPROFILE%\.ssh\profiles.json</c>) and brings it into this version.
+/// The legacy file is only read, never modified.
 /// </summary>
 public static class LegacyImporter
 {
@@ -79,22 +90,70 @@ public static class LegacyImporter
     }
 
     /// <summary>
-    /// Adds the legacy profiles and terminals whose names are not used yet. The legacy selected terminal is
-    /// kept only when the current selection is still the default one.
+    /// Brings the legacy profiles and terminals into this version. A profile becomes a host of
+    /// <paramref name="managed"/> (changed in place) only when <c>ssh alias</c> then does exactly what the profile
+    /// did, and nothing changes for the other connections:
+    /// <list type="bullet">
+    /// <item>ssh_config can express its options, and ssh accepts them (<paramref name="isValid"/>);</item>
+    /// <item>its destination is not another host, of the configuration or of another profile
+    /// (<c>HostName other</c> would not use the options of <c>other</c>);</item>
+    /// <item>the <c>Host</c> patterns of the configuration apply the same way to the alias and to the destination;</item>
+    /// <item>the alias is not the destination itself with options: <c>Host github.com</c> with a key would change
+    /// every connection to github.com, git's included.</item>
+    /// </list>
+    /// Its name becomes the alias, with a suffix when another host already uses it. A profile that only runs
+    /// <c>ssh alias</c> for an existing host is skipped; any other profile becomes a saved command. Nothing existing
+    /// is replaced, so importing twice adds nothing. The legacy selected terminal is kept only when the current
+    /// selection is still the default one.
     /// </summary>
-    public static LegacyMergeResult Merge(PluginData data, LegacyData legacy)
+    /// <param name="data">The current plugin data.</param>
+    /// <param name="managed">The managed ssh_config file, where hosts are added.</param>
+    /// <param name="existing">The whole ssh configuration, to avoid shadowing or bypassing it.</param>
+    /// <param name="legacy">What was read from the legacy file.</param>
+    /// <param name="isValid">Whether ssh accepts a host, or null to accept every valid line.</param>
+    public static LegacyImportResult Import(
+        PluginData data, ManagedConfig managed, SshConfigSnapshot existing, LegacyData legacy, Func<SshHostEntry, bool>? isValid = null)
     {
-        var profiles = data.Profiles.ToList();
-        var addedProfiles = 0;
+        var addedHosts = new List<string>();
+        var addedCommands = 0;
+        var profileAliases = legacy.Profiles
+            .Select(profile => SshConfigText.ToAlias(profile.Name))
+            .OfType<string>()
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var profile in legacy.Profiles)
         {
-            if (profiles.Any(existing => PluginDataOperations.NameComparer.Equals(existing.Name, profile.Name)))
+            if (IsExistingAlias(profile.Command, existing, managed))
             {
                 continue;
             }
 
-            profiles.Add(profile);
-            addedProfiles++;
+            if (SshConfigText.ToAlias(profile.Name) is { } alias)
+            {
+                if (IsAlreadyImported(alias, profile.Command, managed, existing))
+                {
+                    continue;
+                }
+
+                if (FindFaithfulHost(alias, profile.Command, managed, existing, profileAliases, isValid) is { } host)
+                {
+                    try
+                    {
+                        managed.Upsert(host);
+                        addedHosts.Add(host.Alias);
+                        continue;
+                    }
+                    catch (ArgumentException)
+                    {
+                        // Can't be written: kept as a command below.
+                    }
+                }
+            }
+
+            if (data.FindCommand(profile.Name) is null)
+            {
+                data = data.UpsertCommand(new SavedCommand(profile.Name, profile.Command));
+                addedCommands++;
+            }
         }
 
         var terminals = data.Terminals.ToList();
@@ -110,14 +169,90 @@ public static class LegacyImporter
             addedTerminals++;
         }
 
-        var merged = data with { Profiles = profiles, Terminals = terminals };
+        var merged = data with { Terminals = terminals };
         var selectionIsDefault = PluginDataOperations.NameComparer.Equals(data.SelectedTerminal, BuiltInTerminals.Default.Name);
         if (selectionIsDefault && legacy.SelectedTerminal is not null && merged.FindTerminal(legacy.SelectedTerminal) is not null)
         {
             merged = merged.SelectTerminal(legacy.SelectedTerminal);
         }
 
-        return new LegacyMergeResult(merged, addedProfiles, addedTerminals);
+        return new LegacyImportResult(merged, addedHosts, addedCommands, addedTerminals);
+    }
+
+    /// <summary>Whether a command is only <c>ssh alias</c> for a host that already exists (or was just imported).</summary>
+    private static bool IsExistingAlias(string command, SshConfigSnapshot existing, ManagedConfig managed) =>
+        CommandLine.Tokenize(command) is [var program, var destination]
+        && program.Value.Equals("ssh", StringComparison.OrdinalIgnoreCase)
+        && (existing.Find(destination.Value) is not null || managed.Declares(destination.Value));
+
+    /// <summary>
+    /// Whether the managed file already has this profile (imported before), under its alias or a suffixed one:
+    /// the aliases are tried in the order <see cref="FindFaithfulHost"/> uses them.
+    /// </summary>
+    private static bool IsAlreadyImported(string alias, string command, ManagedConfig managed, SshConfigSnapshot existing)
+    {
+        foreach (var candidate in Candidates(alias))
+        {
+            if (managed.Find(candidate) is { } current)
+            {
+                if (SshCommandConverter.ToHost(candidate, command).Host is { } host && current.Options.SequenceEqual(host.Options))
+                {
+                    return true;
+                }
+
+                continue;
+            }
+
+            if (!managed.Declares(candidate) && existing.Find(candidate) is null)
+            {
+                // The first free alias: an earlier import would have used it.
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The host to add under the first free alias (<c>prod</c>, <c>prod-2</c>…), or null when the profile must stay
+    /// a command (see <see cref="Import"/>). The conversion is redone for the alias chosen: the host name is only
+    /// written when it differs from the alias.
+    /// </summary>
+    private static SshHostEntry? FindFaithfulHost(
+        string alias, string command, ManagedConfig managed, SshConfigSnapshot existing, IReadOnlySet<string> profileAliases, Func<SshHostEntry, bool>? isValid)
+    {
+        var candidate = Candidates(alias).FirstOrDefault(name => !managed.Declares(name) && existing.Find(name) is null);
+        if (candidate is null)
+        {
+            return null;
+        }
+
+        var conversion = SshCommandConverter.ToHost(candidate, command);
+        if (conversion is not { Host: { } host, Destination: { } destination })
+        {
+            return null;
+        }
+
+        var isItself = destination.Equals(candidate, StringComparison.OrdinalIgnoreCase);
+        var unfaithful = isItself
+            ? host.Options.Count > 0
+            : existing.Find(destination) is not null || managed.Declares(destination) || profileAliases.Contains(destination)
+              || !existing.HaveSameRules(candidate, destination);
+        if (unfaithful || !ManagedConfig.IsValidHost(host) || (isValid is not null && !isValid(host)))
+        {
+            return null;
+        }
+
+        return host;
+    }
+
+    private static IEnumerable<string> Candidates(string alias)
+    {
+        yield return alias;
+        for (var suffix = 2; suffix < 1000; suffix++)
+        {
+            yield return $"{alias}-{suffix}";
+        }
     }
 
     private static LegacyData ParseVersion1(JsonElement root)
@@ -136,16 +271,17 @@ public static class LegacyImporter
             entries.Add((order, name, command));
         }
 
-        var profiles = UniqueProfiles(entries.OrderBy(entry => entry.Order).Select(entry => (entry.Name, entry.Command)));
+        // EasySSH 1.1 ran its commands as ssh arguments: ssh always goes in front, even before a word that looks like a program.
+        var profiles = UniqueProfiles(SshCommand.NormalizeSshArguments, entries.OrderBy(entry => entry.Order).Select(entry => (entry.Name, entry.Command)));
         return new LegacyData(entries.Count > 0 ? LegacyFormat.Version1 : LegacyFormat.Unknown, profiles, [], null);
     }
 
     private static LegacyData ParseVersion2(JsonElement root, JsonElement entries)
     {
-        var profiles = new List<SshProfile>();
+        var profiles = new List<LegacyProfile>();
         if (entries.ValueKind == JsonValueKind.Object)
         {
-            profiles = UniqueProfiles(entries.EnumerateObject()
+            profiles = UniqueProfiles(SshCommand.Normalize, entries.EnumerateObject()
                 .Where(property => property.Value.ValueKind == JsonValueKind.String)
                 .Select(property => (property.Name, property.Value.GetString() ?? string.Empty)));
         }
@@ -230,18 +366,18 @@ public static class LegacyImporter
         return BuiltInTerminals.IsReservedName(trimmed) ? trimmed + " (custom)" : trimmed;
     }
 
-    private static List<SshProfile> UniqueProfiles(IEnumerable<(string Name, string Command)> entries)
+    private static List<LegacyProfile> UniqueProfiles(Func<string, string> normalize, IEnumerable<(string Name, string Command)> entries)
     {
-        var profiles = new List<SshProfile>();
+        var profiles = new List<LegacyProfile>();
         foreach (var (rawName, rawCommand) in entries)
         {
-            var command = SshCommand.Normalize(rawCommand);
+            var command = normalize(rawCommand);
             if (string.IsNullOrWhiteSpace(rawName) || command.Length == 0)
             {
                 continue;
             }
 
-            profiles.Add(new SshProfile(UniqueName(rawName.Trim(), profiles.Select(profile => profile.Name)), command));
+            profiles.Add(new LegacyProfile(UniqueName(rawName.Trim(), profiles.Select(profile => profile.Name)), command));
         }
 
         return profiles;

@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using Flow.Launcher.Plugin.EasySsh.Core;
 using Microsoft.Win32;
 
 namespace Flow.Launcher.Plugin.EasySsh.Settings;
@@ -41,17 +42,48 @@ internal partial class SettingsPanel : UserControl
         }
     }
 
-    private void AddProfile_OnClick(object sender, RoutedEventArgs e) => _viewModel.NewProfile();
+    private void AddHost_OnClick(object sender, RoutedEventArgs e) => _viewModel.NewHost();
 
-    private void EditProfile_OnClick(object sender, RoutedEventArgs e) => _viewModel.EditProfile();
+    private void EditHost_OnClick(object sender, RoutedEventArgs e) => _viewModel.EditHost();
 
-    private void DeleteProfile_OnClick(object sender, RoutedEventArgs e) => _viewModel.DeleteProfile();
+    private void DeleteHost_OnClick(object sender, RoutedEventArgs e) => _viewModel.DeleteHost();
 
-    private void SaveProfile_OnClick(object sender, RoutedEventArgs e) => _viewModel.SaveProfile();
+    private void ToggleHidden_OnClick(object sender, RoutedEventArgs e) => _viewModel.ToggleHidden();
 
-    private void CancelProfile_OnClick(object sender, RoutedEventArgs e) => _viewModel.CancelProfile();
+    private void OpenHostFile_OnClick(object sender, RoutedEventArgs e) => _viewModel.OpenHostFile();
 
-    private void OpenSshConfig_OnClick(object sender, RoutedEventArgs e) => _viewModel.OpenSshConfig();
+    private void SaveHost_OnClick(object sender, RoutedEventArgs e) => _viewModel.SaveHost();
+
+    private void CancelHost_OnClick(object sender, RoutedEventArgs e) => _viewModel.CancelHost();
+
+    private void BrowseIdentityFile_OnClick(object sender, RoutedEventArgs e)
+    {
+        var sshDirectory = SshConfigParser.DefaultSshDirectory;
+        var dialog = new OpenFileDialog
+        {
+            CheckFileExists = true,
+            Filter = "All files (*.*)|*.*",
+            InitialDirectory = Directory.Exists(sshDirectory) ? sshDirectory : string.Empty,
+        };
+        if (dialog.ShowDialog(Window.GetWindow(this)) == true)
+        {
+            _viewModel.HostIdentityFile = SshConfigText.NormalizePath(dialog.FileName);
+        }
+    }
+
+    private void AddCommand_OnClick(object sender, RoutedEventArgs e) => _viewModel.NewCommand();
+
+    private void EditCommand_OnClick(object sender, RoutedEventArgs e) => _viewModel.EditCommand();
+
+    private void DeleteCommand_OnClick(object sender, RoutedEventArgs e) => _viewModel.DeleteCommand();
+
+    private void SaveCommand_OnClick(object sender, RoutedEventArgs e) => _viewModel.SaveCommand();
+
+    private void CancelCommand_OnClick(object sender, RoutedEventArgs e) => _viewModel.CancelCommand();
+
+    private void OpenMainConfig_OnClick(object sender, RoutedEventArgs e) => _viewModel.OpenMainConfig();
+
+    private void OpenManagedConfig_OnClick(object sender, RoutedEventArgs e) => _viewModel.OpenManagedConfig();
 
     private void OpenDataFolder_OnClick(object sender, RoutedEventArgs e) => _viewModel.OpenDataFolder();
 

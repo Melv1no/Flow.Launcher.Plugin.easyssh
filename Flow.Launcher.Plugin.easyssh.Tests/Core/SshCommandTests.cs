@@ -11,6 +11,8 @@ public class SshCommandTests
     [InlineData("-p 22 host", "ssh -p 22 host")]
     [InlineData("myserver", "ssh myserver")]
     [InlineData("ssh://user@host:2222", "ssh ssh://user@host:2222")]
+    [InlineData("web.example.com -p 2222", "ssh web.example.com -p 2222")]
+    [InlineData(@"C:\dos\tool.com /x", @"C:\dos\tool.com /x")]
     // Full commands are kept.
     [InlineData("ssh root@host", "ssh root@host")]
     [InlineData("SSH.exe root@host", "SSH.exe root@host")]
@@ -70,5 +72,15 @@ public class SshCommandTests
     public void GuessDestination_finds_the_host(string command, string? expected)
     {
         Assert.Equal(expected, SshCommand.GuessDestination(command));
+    }
+
+    [Theory]
+    [InlineData("docker", "ssh docker")]
+    [InlineData("example.com -p 2222", "ssh example.com -p 2222")]
+    [InlineData("ssh root@host", "ssh root@host")]
+    [InlineData("-i 'C:\\k\\id' host", "ssh -i \"C:\\k\\id\" host")]
+    public void Arguments_of_version_1_always_run_with_ssh(string input, string expected)
+    {
+        Assert.Equal(expected, SshCommand.NormalizeSshArguments(input));
     }
 }

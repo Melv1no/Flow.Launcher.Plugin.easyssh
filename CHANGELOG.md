@@ -2,21 +2,31 @@
 
 ## 3.0.0
 
-A complete rework of the plugin. It requires Flow Launcher 2.0 or later.
+A complete rework of the plugin around the OpenSSH configuration. It requires Flow Launcher 2.0 or later.
 
 ### Added
 
-- Hosts of `~/.ssh/config` (with `Include`) are listed with the profiles.
-- Typing anything that is not a command searches the connections, and the last result connects to what was typed.
+- `~/.ssh/config` is the source of the hosts: every host it declares (following `Include`) is listed, with its user,
+  host name, port and jump host.
+- Hosts added with `ssh add` (or the settings) are written to `~/.ssh/easyssh.config`, in ssh_config syntax, so
+  `ssh <name>` also works outside Flow Launcher. `~/.ssh/config` only gets one `Include easyssh.config` line.
+  Command line options are converted to their ssh_config keywords (`-p`, `-i`, `-J`, `-L`, `-o`…).
+- Commands that ssh_config can't express (`wsl ssh …`, `plink …`, `ssh -N …`) are kept as saved commands.
+- Servers of `~/.ssh/known_hosts` are suggested while typing.
+- Hosts can be hidden from the results (`ssh hidden` shows them again); duplicated aliases are flagged.
+- SFTP session from the context menu; `ssh config` opens the configuration files.
+- Graphical clients (PuTTY, KiTTY, WinSCP…) are started directly, without an empty console behind them (#2).
+- Typing anything that is not a command searches the hosts, and the last result connects to what was typed.
 - Terminal presets: Command Prompt, Windows Terminal (new tab), Windows PowerShell, PowerShell 7. The terminal can
   be selected from the search bar (`ssh terminal`) or the settings (#2).
 - Custom terminals with `{command}` and `{name}` placeholders.
-- Settings panel: terminal, custom terminals, profiles (add, edit, rename, delete), `~/.ssh/config` hosts, data.
-- Context menu: copy the command, edit, remove, open in another terminal, save a host or a direct connection as a profile.
-- <kbd>Tab</kbd> completes commands and profile names (#4); <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the command.
-- `ssh edit` and confirmation before removing a profile.
+- Settings panel: terminal, custom terminals, hosts (editor with HostName, User, Port, IdentityFile, ProxyJump and
+  any other option), saved commands, SSH files, data.
+- Context menu: copy the command, SFTP, edit, remove, hide, open the file, open in another terminal, save a direct
+  connection or a known server as a host.
+- <kbd>Tab</kbd> completes commands and host names (#4); <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the command.
+- `ssh edit` and confirmation before removing.
 - The window stays open when ssh fails, to read the error (can be disabled).
-- Profile names with spaces (`ssh add "My server" …`).
 - Matching characters of the names are highlighted.
 - New icon, and icons that tell what a result does: add, current choice, remove, warning.
 
@@ -34,8 +44,10 @@ A complete rework of the plugin. It requires Flow Launcher 2.0 or later.
 
 ### Changed
 
-- Data moved to Flow Launcher's plugin settings folder (`easyssh.json`), saved atomically with a backup.
-  `~/.ssh/profiles.json` is imported once and left untouched.
+- Profiles are replaced by ssh_config hosts. `~/.ssh/profiles.json` is imported once and left untouched: profiles
+  become hosts of `~/.ssh/easyssh.config` (or saved commands), custom shells become custom terminals.
+- The other data (saved commands, terminals, options) is in Flow Launcher's plugin settings folder (`easyssh.json`).
+  Every file is saved atomically with a backup.
 - Results are ranked by tier, then prefix, then usage, then name.
 - Built for .NET 9 and the Flow Launcher 2 plugin API; the package no longer ships Flow Launcher's own libraries.
 - Releases are built and published by GitHub Actions when the version changes.

@@ -7,7 +7,7 @@ using Flow.Launcher.Plugin.EasySsh.Storage;
 
 namespace Flow.Launcher.Plugin.EasySsh;
 
-/// <summary>EasySSH: save, search and open SSH connections from Flow Launcher.</summary>
+/// <summary>EasySSH: search, save and open SSH connections from Flow Launcher, with the hosts of ~/.ssh/config.</summary>
 public sealed class Main : IAsyncPlugin, IContextMenu, IPluginI18n, ISettingProvider, IAsyncReloadable
 {
     private const string LogClass = "EasySSH";
@@ -107,9 +107,13 @@ public sealed class Main : IAsyncPlugin, IContextMenu, IPluginI18n, ISettingProv
 
     /// <inheritdoc />
     public string GetTranslatedPluginDescription() =>
-        Translate("plugin_easyssh_plugin_description", "Save, search and open SSH connections in your favorite terminal.");
+        Translate("plugin_easyssh_plugin_description", "Search, save and open SSH connections, with the hosts of your ~/.ssh/config.");
 
     /// <summary>Sets the plugin up. Never throws: a failure is reported by every query instead.</summary>
+    /// <param name="api">Flow Launcher's API.</param>
+    /// <param name="dataDirectory">Folder of the plugin data (<c>easyssh.json</c>).</param>
+    /// <param name="legacyPath">Data file of EasySSH 1.x.</param>
+    /// <param name="sshConfigPath">The ssh configuration (<c>~/.ssh/config</c>); its folder holds the other ssh files.</param>
     internal void Initialize(IPublicAPI api, string dataDirectory, string legacyPath, string sshConfigPath)
     {
         _api = api;
@@ -119,8 +123,9 @@ public sealed class Main : IAsyncPlugin, IContextMenu, IPluginI18n, ISettingProv
         try
         {
             var store = DataStore.Open(dataDirectory);
-            var sshConfig = new SshConfigCache(sshConfigPath, e => api.LogException(LogClass, "Could not read the SSH config", e));
-            var services = new PluginServices(api, store, sshConfig, ExecutableResolver.IsOpenSshInstalled(), legacyPath);
+            var files = new SshConfigFiles(sshConfigPath);
+            var services = new PluginServices(
+                api, store, files, ExecutableResolver.IsOpenSshInstalled(), legacyPath, Path.Combine(files.SshDirectory, "known_hosts"));
             ReportLoadStatus(services);
             ImportLegacyDataOnce(services, legacyPath);
             _services = services;
@@ -163,36 +168,37 @@ public sealed class Main : IAsyncPlugin, IContextMenu, IPluginI18n, ISettingProv
         }
     }
 
+    /// <summary>The message telling what an import did.</summary>
+    internal static string DescribeImport(PluginServices services, LegacyImportResult result, bool includeAdded, string legacyPath)
+    {
+        var message = services.T(
+            "plugin_easyssh_import_done",
+            result.AddedHosts.Count,
+            services.DisplayPath(services.Files.ManagedPath),
+            result.AddedCommands,
+            result.AddedTerminals,
+            services.DisplayPath(legacyPath));
+        return includeAdded ? message + "\n" + services.T("plugin_easyssh_include_added", services.DisplayPath(services.Files.MainConfigPath)) : message;
+    }
+
     private static void ReportLoadStatus(PluginServices services)
     {
         var store = services.Store;
         switch (store.LoadStatus)
         {
             case DataLoadStatus.RestoredFromBackup:
-                Notify(services, services.T("plugin_easyssh_data_restored", store.DamagedFileCopy ?? store.FilePath), Icons.Warning);
+                services.Notify(services.T("plugin_easyssh_data_restored", store.DamagedFileCopy ?? store.FilePath), Icons.Warning);
                 break;
             case DataLoadStatus.ResetAfterCorruption:
-                Notify(services, services.T("plugin_easyssh_data_reset", store.DamagedFileCopy ?? store.FilePath), Icons.Warning);
+                services.Notify(services.T("plugin_easyssh_data_reset", store.DamagedFileCopy ?? store.FilePath), Icons.Warning);
                 break;
-        }
-    }
-
-    /// <summary>Shows a notification; a failure to show it must not break the plugin.</summary>
-    private static void Notify(PluginServices services, string message, string icon)
-    {
-        try
-        {
-            services.Api.ShowMsg(services.T("plugin_easyssh_plugin_name"), message, icon);
-        }
-        catch (Exception e)
-        {
-            services.Log("Could not show a notification", e);
         }
     }
 
     /// <summary>
-    /// On the first start of this version, merges the profiles and terminals of EasySSH 1.x/2.x.
-    /// The old file is left untouched. If it can't be read right now, the next start tries again.
+    /// On the first start of this version, brings the profiles and terminals of EasySSH 1.x in: the profiles
+    /// become hosts of <c>~/.ssh/easyssh.config</c> when possible. The old file is left untouched.
+    /// If something can't be read or written right now, the next start tries again.
     /// </summary>
     private static void ImportLegacyDataOnce(PluginServices services, string legacyPath)
     {
@@ -217,28 +223,17 @@ public sealed class Main : IAsyncPlugin, IContextMenu, IPluginI18n, ISettingProv
             return;
         }
 
-        var added = (Profiles: 0, Terminals: 0);
         try
         {
-            services.Store.Update(data =>
+            var (result, includeAdded) = services.ImportLegacy(legacy, legacy is null ? null : legacyPath);
+            if (result.AddedAnything)
             {
-                var merged = legacy is null ? new LegacyMergeResult(data, 0, 0) : LegacyImporter.Merge(data, legacy);
-                added = (merged.AddedProfiles, merged.AddedTerminals);
-                return merged.Data with
-                {
-                    LegacyImport = new LegacyImportInfo(DateTimeOffset.Now, legacy is null ? null : legacyPath, merged.AddedProfiles, merged.AddedTerminals),
-                };
-            });
+                services.Notify(DescribeImport(services, result, includeAdded, legacyPath), Icons.Selected);
+            }
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
         {
-            services.Log("Could not save the imported data, will try again on next start", e);
-            return;
-        }
-
-        if (added.Profiles + added.Terminals > 0)
-        {
-            Notify(services, services.T("plugin_easyssh_import_done", added.Profiles, added.Terminals, legacyPath), Icons.Selected);
+            services.Log("Could not import the data of EasySSH 1.x, will try again on next start", e);
         }
     }
 
@@ -266,7 +261,7 @@ public sealed class Main : IAsyncPlugin, IContextMenu, IPluginI18n, ISettingProv
         return string.IsNullOrEmpty(text) || text.Contains(key, StringComparison.Ordinal) ? fallback ?? text ?? key : text;
     }
 
-    /// <summary>Used only if Flow Launcher doesn't give a settings folder (versions before 1.20).</summary>
+    /// <summary>Used only if Flow Launcher doesn't give a settings folder.</summary>
     private static string FallbackDataDirectory() => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "FlowLauncher", "Settings", "Plugins", "Flow.Launcher.Plugin.easyssh");

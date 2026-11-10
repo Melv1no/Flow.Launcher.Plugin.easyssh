@@ -12,9 +12,13 @@ public static partial class SshCommand
         "wsl", "bash", "docker", "kubectl", "cmd", "powershell", "pwsh",
     };
 
+    /// <summary>
+    /// Extensions that make a first word a program. Not <c>.com</c>: <c>example.com</c> is far more likely a host
+    /// than a DOS program (a path such as <c>C:\tools\x.com</c> is still recognized).
+    /// </summary>
     private static readonly HashSet<string> ExecutableExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".exe", ".com", ".bat", ".cmd", ".ps1",
+        ".exe", ".bat", ".cmd", ".ps1",
     };
 
     /// <summary>ssh options that consume the next argument (see <c>man ssh</c>).</summary>
@@ -39,6 +43,24 @@ public static partial class SshCommand
 
         var (first, _) = CommandLine.SplitFirst(text);
         return StartsWithProgram(first) ? text : "ssh " + text;
+    }
+
+    /// <summary>
+    /// Normalizes arguments that are always meant for ssh (EasySSH 1.1 profiles): <c>ssh</c> is put in front
+    /// unless they already start with it, even when the first word looks like a program.
+    /// </summary>
+    public static string NormalizeSshArguments(string? input)
+    {
+        var text = FixSingleQuotedPaths((input ?? string.Empty).Trim());
+        if (text.Length == 0)
+        {
+            return text;
+        }
+
+        var (first, _) = CommandLine.SplitFirst(text);
+        return first.Equals("ssh", StringComparison.OrdinalIgnoreCase) || first.Equals("ssh.exe", StringComparison.OrdinalIgnoreCase)
+            ? text
+            : "ssh " + text;
     }
 
     /// <summary>Whether <paramref name="firstToken"/> designates a program rather than an ssh destination or option.</summary>

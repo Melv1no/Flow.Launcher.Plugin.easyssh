@@ -62,4 +62,16 @@ public class ExecutableResolverTests : IDisposable
     {
         Assert.NotNull(ExecutableResolver.Resolve("cmd.exe"));
     }
+
+    [Fact]
+    public void Graphical_programs_are_told_apart_from_console_ones()
+    {
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+
+        Assert.True(ExecutableResolver.IsGuiApplication(Path.Combine(windows, "explorer.exe")));
+        Assert.False(ExecutableResolver.IsGuiApplication(Path.Combine(system, "cmd.exe")));
+        Assert.False(ExecutableResolver.IsGuiApplication(Path.Combine(system, "drivers", "etc", "hosts")));
+        Assert.False(ExecutableResolver.IsGuiApplication(Path.Combine(system, "does-not-exist.exe")));
+    }
 }

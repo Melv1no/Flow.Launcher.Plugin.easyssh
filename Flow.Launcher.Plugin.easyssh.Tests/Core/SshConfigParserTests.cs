@@ -26,10 +26,52 @@ public class SshConfigParserTests : IDisposable
         var hosts = SshConfigParser.Load(config).Hosts;
 
         Assert.Equal(["web", "db", "db-replica"], hosts.Select(host => host.Alias));
-        Assert.Equal(new SshConfigHost("web", "10.0.0.5", "admin", "2222", config), hosts[0]);
+        Assert.Equal(new SshConfigHost("web", "10.0.0.5", "admin", "2222", null, null, config), hosts[0]);
         Assert.Equal("admin@10.0.0.5:2222", hosts[0].Target);
         Assert.Equal("db.internal", hosts[2].HostName);
         Assert.Equal("ssh web", hosts[0].Command);
+    }
+
+    [Fact]
+    public void Reads_jump_hosts_and_identity_files()
+    {
+        var config = _temp.Write("config", """
+            Host internal
+                ProxyJump bastion
+                IdentityFile "~/.ssh/my key"
+                IdentityFile ~/.ssh/second
+            """);
+
+        var host = Assert.Single(SshConfigParser.Load(config).Hosts);
+
+        Assert.Equal("bastion", host.ProxyJump);
+        Assert.Equal("~/.ssh/my key", host.IdentityFile);
+    }
+
+    [Fact]
+    public void Duplicated_aliases_are_reported_with_the_ignored_file()
+    {
+        var other = _temp.Write("other", "Host web\nHost unique");
+        var config = _temp.Write("config", $"Host web\nInclude \"{other}\"");
+
+        var snapshot = SshConfigParser.Load(config);
+
+        Assert.Equal(["web", "unique"], snapshot.Hosts.Select(host => host.Alias));
+        Assert.Equal([other], snapshot.Duplicates["WEB"]);
+        Assert.Equal([config, other], snapshot.Files);
+        Assert.Same(snapshot.Hosts[0], snapshot.Find("Web"));
+    }
+
+    [Fact]
+    public void Include_patterns_are_resolved_like_ssh_does()
+    {
+        _temp.Write(Path.Combine("d", "a.conf"), "Host a");
+        _temp.Write(Path.Combine("d", "b.conf"), "Host b");
+
+        Assert.Equal(
+            [_temp.Combine("d", "a.conf"), _temp.Combine("d", "b.conf")],
+            SshConfigParser.ResolveInclude("d/*.conf", _temp.Path));
+        Assert.Equal([_temp.Combine("missing")], SshConfigParser.ResolveInclude("missing", _temp.Path));
     }
 
     [Fact]
@@ -164,5 +206,38 @@ public class SshConfigParserTests : IDisposable
         File.WriteAllText(config, "Host new");
 
         Assert.True(snapshot.IsStale());
+    }
+
+    [Theory]
+    [InlineData("*.corp", "web.corp", true)]
+    [InlineData("*.corp", "web", false)]
+    [InlineData("WEB?", "web1", true)]
+    [InlineData("* !bastion", "bastion", false)]
+    [InlineData("* !bastion", "web", true)]
+    [InlineData("!bastion", "web", false)]
+    public void Host_lines_match_like_ssh_does(string patterns, string host, bool expected)
+    {
+        Assert.Equal(expected, SshConfigParser.MatchesHostLine(patterns.Split(' '), host));
+    }
+
+    [Fact]
+    public void Host_patterns_must_apply_the_same_way_to_an_alias_and_its_destination()
+    {
+        var config = _temp.Write("config", "Host *.corp\n  ProxyJump bastion\nHost *\n  ServerAliveInterval 60\n");
+
+        var snapshot = SshConfigParser.Load(config);
+
+        Assert.False(snapshot.HaveSameRules("web", "web.corp"));
+        Assert.True(snapshot.HaveSameRules("web", "10.0.0.5"));
+        Assert.True(snapshot.HaveSameRules("WEB.corp", "web.corp"));
+    }
+
+    [Fact]
+    public void Match_originalhost_makes_the_rules_unknown()
+    {
+        var config = _temp.Write("config", "Match originalhost web\n  User x\n");
+
+        Assert.False(SshConfigParser.Load(config).HaveSameRules("web", "10.0.0.5"));
+        Assert.True(SshConfigParser.Load(_temp.Write("other", "Match all\n  User x\n")).HaveSameRules("web", "10.0.0.5"));
     }
 }

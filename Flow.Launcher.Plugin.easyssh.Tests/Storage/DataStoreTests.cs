@@ -11,8 +11,8 @@ public class DataStoreTests : IDisposable
 
     public void Dispose() => _temp.Dispose();
 
-    private static PluginData WithProfile(PluginData data, string name) =>
-        data.UpsertProfile(new SshProfile(name, "ssh " + name));
+    private static PluginData WithCommand(PluginData data, string name) =>
+        data.UpsertCommand(new SavedCommand(name, "ssh " + name));
 
     [Fact]
     public void Opening_writes_nothing_until_the_first_change()
@@ -22,7 +22,7 @@ public class DataStoreTests : IDisposable
         var store = DataStore.Open(folder);
 
         Assert.Equal(DataLoadStatus.Created, store.LoadStatus);
-        Assert.Empty(store.Data.Profiles);
+        Assert.Empty(store.Data.Commands);
         Assert.False(Directory.Exists(folder));
     }
 
@@ -30,23 +30,23 @@ public class DataStoreTests : IDisposable
     public void Changes_are_saved_and_read_back()
     {
         var store = DataStore.Open(_temp.Path);
-        store.Update(data => WithProfile(data, "prod") with { KeepWindowOpenOnError = false });
+        store.Update(data => WithCommand(data, "prod") with { KeepWindowOpenOnError = false });
 
         var reopened = DataStore.Open(_temp.Path);
 
         Assert.Equal(DataLoadStatus.Loaded, reopened.LoadStatus);
-        Assert.Equal(new SshProfile("prod", "ssh prod"), Assert.Single(reopened.Data.Profiles));
+        Assert.Equal(new SavedCommand("prod", "ssh prod"), Assert.Single(reopened.Data.Commands));
         Assert.False(reopened.Data.KeepWindowOpenOnError);
     }
 
     [Fact]
     public void The_file_is_readable_json()
     {
-        DataStore.Open(_temp.Path).Update(data => WithProfile(data, "prod"));
+        DataStore.Open(_temp.Path).Update(data => WithCommand(data, "prod"));
 
         using var json = JsonDocument.Parse(File.ReadAllText(FilePath));
         Assert.Equal(PluginData.CurrentVersion, json.RootElement.GetProperty("Version").GetInt32());
-        Assert.Equal("ssh prod", json.RootElement.GetProperty("Profiles")[0].GetProperty("Command").GetString());
+        Assert.Equal("ssh prod", json.RootElement.GetProperty("Commands")[0].GetProperty("Command").GetString());
         Assert.Contains("\n", File.ReadAllText(FilePath));
     }
 
@@ -54,8 +54,8 @@ public class DataStoreTests : IDisposable
     public void The_previous_version_is_kept_as_backup()
     {
         var store = DataStore.Open(_temp.Path);
-        store.Update(data => WithProfile(data, "first"));
-        store.Update(data => WithProfile(data, "second"));
+        store.Update(data => WithCommand(data, "first"));
+        store.Update(data => WithCommand(data, "second"));
 
         var backup = File.ReadAllText(FilePath + ".bak");
 
@@ -68,14 +68,14 @@ public class DataStoreTests : IDisposable
     public void A_damaged_file_is_restored_from_the_backup_and_kept_aside()
     {
         var store = DataStore.Open(_temp.Path);
-        store.Update(data => WithProfile(data, "first"));
-        store.Update(data => WithProfile(data, "second"));
+        store.Update(data => WithCommand(data, "first"));
+        store.Update(data => WithCommand(data, "second"));
         File.WriteAllText(FilePath, "{ this is not json");
 
         var reopened = DataStore.Open(_temp.Path);
 
         Assert.Equal(DataLoadStatus.RestoredFromBackup, reopened.LoadStatus);
-        Assert.Equal(["first"], reopened.Data.Profiles.Select(profile => profile.Name));
+        Assert.Equal(["first"], reopened.Data.Commands.Select(command => command.Name));
         Assert.NotNull(reopened.DamagedFileCopy);
         Assert.Equal("{ this is not json", File.ReadAllText(reopened.DamagedFileCopy!));
         Assert.Equal(DataLoadStatus.Loaded, DataStore.Open(_temp.Path).LoadStatus);
@@ -89,7 +89,7 @@ public class DataStoreTests : IDisposable
         var store = DataStore.Open(_temp.Path);
 
         Assert.Equal(DataLoadStatus.ResetAfterCorruption, store.LoadStatus);
-        Assert.Empty(store.Data.Profiles);
+        Assert.Empty(store.Data.Commands);
         Assert.Equal("[1, 2, 3]", File.ReadAllText(store.DamagedFileCopy!));
     }
 
@@ -97,21 +97,21 @@ public class DataStoreTests : IDisposable
     public void A_missing_file_is_restored_from_the_backup()
     {
         var store = DataStore.Open(_temp.Path);
-        store.Update(data => WithProfile(data, "first"));
-        store.Update(data => WithProfile(data, "second"));
+        store.Update(data => WithCommand(data, "first"));
+        store.Update(data => WithCommand(data, "second"));
         File.Delete(FilePath);
 
         var reopened = DataStore.Open(_temp.Path);
 
         Assert.Equal(DataLoadStatus.RestoredFromBackup, reopened.LoadStatus);
-        Assert.Single(reopened.Data.Profiles);
+        Assert.Single(reopened.Data.Commands);
         Assert.True(File.Exists(FilePath));
     }
 
     [Fact]
     public void A_locked_file_fails_without_writing_anything()
     {
-        DataStore.Open(_temp.Path).Update(data => WithProfile(data, "precious"));
+        DataStore.Open(_temp.Path).Update(data => WithCommand(data, "precious"));
         var before = File.ReadAllText(FilePath);
 
         using (new FileStream(FilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None))
@@ -125,9 +125,9 @@ public class DataStoreTests : IDisposable
     [Fact]
     public void Properties_of_newer_versions_are_preserved()
     {
-        File.WriteAllText(FilePath, """{ "Version": 4, "Profiles": [], "FutureSetting": { "x": 1 } }""");
+        File.WriteAllText(FilePath, """{ "Version": 5, "Commands": [], "FutureSetting": { "x": 1 } }""");
 
-        DataStore.Open(_temp.Path).Update(data => WithProfile(data, "prod"));
+        DataStore.Open(_temp.Path).Update(data => WithCommand(data, "prod"));
 
         using var json = JsonDocument.Parse(File.ReadAllText(FilePath));
         Assert.Equal(1, json.RootElement.GetProperty("FutureSetting").GetProperty("x").GetInt32());
@@ -137,13 +137,13 @@ public class DataStoreTests : IDisposable
     public void A_failing_change_changes_nothing()
     {
         var store = DataStore.Open(_temp.Path);
-        store.Update(data => WithProfile(data, "prod"));
+        store.Update(data => WithCommand(data, "prod"));
         var before = store.Data;
 
-        Assert.Throws<ArgumentException>(() => store.Update(data => data.UpsertProfile(new SshProfile("", "x"))));
+        Assert.Throws<ArgumentException>(() => store.Update(data => data.UpsertCommand(new SavedCommand("", "x"))));
 
         Assert.Same(before, store.Data);
-        Assert.Single(DataStore.Open(_temp.Path).Data.Profiles);
+        Assert.Single(DataStore.Open(_temp.Path).Data.Commands);
     }
 
     [Fact]
@@ -153,7 +153,7 @@ public class DataStoreTests : IDisposable
         var raised = 0;
         store.Changed += (_, _) => raised++;
 
-        store.Update(data => WithProfile(data, "prod"));
+        store.Update(data => WithCommand(data, "prod"));
         store.Update(data => data);
 
         Assert.Equal(1, raised);
@@ -164,20 +164,20 @@ public class DataStoreTests : IDisposable
     {
         var store = DataStore.Open(_temp.Path);
 
-        Parallel.For(0, 40, index => store.Update(data => WithProfile(data, "host" + index)));
+        Parallel.For(0, 40, index => store.Update(data => WithCommand(data, "host" + index)));
 
-        Assert.Equal(40, DataStore.Open(_temp.Path).Data.Profiles.Count);
+        Assert.Equal(40, DataStore.Open(_temp.Path).Data.Commands.Count);
     }
 
     [Fact]
     public void Reload_reads_changes_made_by_hand()
     {
         var store = DataStore.Open(_temp.Path);
-        store.Update(data => WithProfile(data, "prod"));
-        File.WriteAllText(FilePath, """{ "Profiles": [ { "Name": "edited", "Command": "ssh edited" } ] }""");
+        store.Update(data => WithCommand(data, "prod"));
+        File.WriteAllText(FilePath, """{ "Commands": [ { "Name": "edited", "Command": "ssh edited" } ] }""");
 
         store.Reload();
 
-        Assert.Equal("edited", Assert.Single(store.Data.Profiles).Name);
+        Assert.Equal("edited", Assert.Single(store.Data.Commands).Name);
     }
 }
