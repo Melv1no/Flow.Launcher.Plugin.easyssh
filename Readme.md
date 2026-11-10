@@ -165,8 +165,9 @@ Requirements: the .NET 9 SDK (or later) on Windows.
 ```powershell
 dotnet build                     # build the plugin and the tests
 dotnet test                      # run the tests
-./scripts/deploy-local.ps1       # build and install in your Flow Launcher (the installed copy is moved to a backup)
 ./scripts/package.ps1            # create artifacts/easyssh.zip, as published
+./scripts/deploy-local.ps1       # install that zip in your Flow Launcher (the installed copy is kept in a backup)
+./scripts/deploy-local.ps1 -ResetData   # same, and start from scratch: the 1.x data is imported again
 ```
 
 The icons of `Flow.Launcher.Plugin.easyssh/Images` are drawn by `scripts/icons/generate-icons.cs` (colors, shapes
