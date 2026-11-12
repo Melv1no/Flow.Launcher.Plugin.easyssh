@@ -1,0 +1,588 @@
+<UserControl
+    x:Class="Flow.Launcher.Plugin.EasySsh.Settings.SettingsPanel"
+    x:ClassModifier="internal"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignWidth="800"
+    mc:Ignorable="d">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibility" />
+    </UserControl.Resources>
+
+    <!-- Flow Launcher provides the theme: only inline properties here, no style that would replace it. -->
+    <StackPanel Margin="{DynamicResource SettingPanelMargin}">
+
+        <!-- Terminal -->
+        <TextBlock
+            FontSize="14"
+            FontWeight="SemiBold"
+            Text="{DynamicResource plugin_easyssh_settings_terminal}" />
+        <TextBlock
+            Margin="0,2,0,6"
+            Opacity="0.75"
+            Text="{DynamicResource plugin_easyssh_settings_terminal_description}"
+            TextWrapping="Wrap" />
+        <ComboBox
+            MinWidth="280"
+            HorizontalAlignment="Left"
+            DisplayMemberPath="Label"
+            ItemsSource="{Binding TerminalOptions}"
+            SelectedItem="{Binding SelectedTerminal}" />
+        <CheckBox
+            Margin="0,8,0,0"
+            Content="{DynamicResource plugin_easyssh_settings_keep_open}"
+            IsChecked="{Binding KeepWindowOpenOnError}" />
+
+        <!-- Custom terminals -->
+        <TextBlock
+            Margin="0,18,0,0"
+            FontSize="14"
+            FontWeight="SemiBold"
+            Text="{DynamicResource plugin_easyssh_settings_custom_terminals}" />
+        <TextBlock
+            Margin="0,2,0,6"
+            Opacity="0.75"
+            Text="{DynamicResource plugin_easyssh_settings_custom_terminals_description}"
+            TextWrapping="Wrap" />
+        <ListView
+            MaxHeight="180"
+            ItemsSource="{Binding CustomTerminals}"
+            MouseDoubleClick="EditTerminal_OnClick"
+            SelectedItem="{Binding SelectedCustomTerminal}">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn
+                        Width="150"
+                        DisplayMemberBinding="{Binding Name}"
+                        Header="{DynamicResource plugin_easyssh_settings_name}" />
+                    <GridViewColumn
+                        Width="200"
+                        DisplayMemberBinding="{Binding Executable}"
+                        Header="{DynamicResource plugin_easyssh_settings_program}" />
+                    <GridViewColumn
+                        Width="260"
+                        DisplayMemberBinding="{Binding Arguments}"
+                        Header="{DynamicResource plugin_easyssh_settings_arguments}" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+        <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+            <Button
+                MinWidth="90"
+                Margin="0,0,8,0"
+                Click="AddTerminal_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_add}" />
+            <Button
+                MinWidth="90"
+                Margin="0,0,8,0"
+                Click="EditTerminal_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_edit}"
+                IsEnabled="{Binding HasSelectedCustomTerminal}" />
+            <Button
+                MinWidth="90"
+                Click="DeleteTerminal_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_delete}"
+                IsEnabled="{Binding HasSelectedCustomTerminal}" />
+        </StackPanel>
+        <Border
+            Margin="0,8,0,0"
+            Padding="12"
+            BorderBrush="#40808080"
+            BorderThickness="1"
+            CornerRadius="4"
+            Visibility="{Binding IsEditingTerminal, Converter={StaticResource BooleanToVisibility}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="{DynamicResource plugin_easyssh_settings_name}" />
+                <TextBox
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Margin="0,0,0,6"
+                    Text="{Binding TerminalName, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="{DynamicResource plugin_easyssh_settings_program}" />
+                <TextBox
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Margin="0,0,0,6"
+                    FontFamily="Consolas"
+                    Text="{Binding TerminalExecutable, UpdateSourceTrigger=PropertyChanged}" />
+                <Button
+                    Grid.Row="1"
+                    Grid.Column="2"
+                    Margin="8,0,0,6"
+                    Click="BrowseExecutable_OnClick"
+                    Content="{DynamicResource plugin_easyssh_settings_browse}" />
+
+                <TextBlock
+                    Grid.Row="2"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="{DynamicResource plugin_easyssh_settings_arguments}" />
+                <TextBox
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Margin="0,0,0,6"
+                    FontFamily="Consolas"
+                    Text="{Binding TerminalArguments, UpdateSourceTrigger=PropertyChanged}" />
+
+                <StackPanel
+                    Grid.Row="3"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="3"
+                    Margin="0,4,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+                    <Button
+                        MinWidth="90"
+                        Margin="0,0,8,0"
+                        Click="SaveTerminal_OnClick"
+                        Content="{DynamicResource plugin_easyssh_settings_save}" />
+                    <Button
+                        MinWidth="90"
+                        Click="CancelTerminal_OnClick"
+                        Content="{DynamicResource plugin_easyssh_settings_cancel}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Hosts -->
+        <TextBlock
+            Margin="0,18,0,0"
+            FontSize="14"
+            FontWeight="SemiBold"
+            Text="{DynamicResource plugin_easyssh_settings_hosts}" />
+        <TextBlock
+            Margin="0,2,0,6"
+            Opacity="0.75"
+            Text="{DynamicResource plugin_easyssh_settings_hosts_description}"
+            TextWrapping="Wrap" />
+        <ListView
+            MaxHeight="260"
+            ItemsSource="{Binding Hosts}"
+            MouseDoubleClick="EditHost_OnClick"
+            SelectedItem="{Binding SelectedHost}">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn
+                        Width="160"
+                        DisplayMemberBinding="{Binding Alias}"
+                        Header="{DynamicResource plugin_easyssh_settings_alias}" />
+                    <GridViewColumn
+                        Width="220"
+                        DisplayMemberBinding="{Binding Target}"
+                        Header="{DynamicResource plugin_easyssh_settings_target}" />
+                    <GridViewColumn
+                        Width="170"
+                        DisplayMemberBinding="{Binding File}"
+                        Header="{DynamicResource plugin_easyssh_settings_file}" />
+                    <GridViewColumn
+                        Width="70"
+                        DisplayMemberBinding="{Binding State}"
+                        Header="" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+        <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+            <Button
+                MinWidth="90"
+                Margin="0,0,8,0"
+                Click="AddHost_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_add}" />
+            <Button
+                MinWidth="90"
+                Margin="0,0,8,0"
+                Click="EditHost_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_edit}"
+                IsEnabled="{Binding HasSelectedHost}" />
+            <Button
+                MinWidth="90"
+                Margin="0,0,8,0"
+                Click="DeleteHost_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_delete}"
+                IsEnabled="{Binding CanDeleteHost}" />
+            <Button
+                MinWidth="90"
+                Margin="0,0,8,0"
+                Click="ToggleHidden_OnClick"
+                Content="{Binding HideButtonLabel}"
+                IsEnabled="{Binding HasSelectedHost}" />
+            <Button
+                MinWidth="90"
+                Click="OpenHostFile_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_open_file}"
+                IsEnabled="{Binding HasSelectedHost}" />
+        </StackPanel>
+        <Border
+            Margin="0,8,0,0"
+            Padding="12"
+            BorderBrush="#40808080"
+            BorderThickness="1"
+            CornerRadius="4"
+            Visibility="{Binding IsEditingHost, Converter={StaticResource BooleanToVisibility}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="{DynamicResource plugin_easyssh_settings_alias}" />
+                <TextBox
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Margin="0,0,0,6"
+                    Text="{Binding HostAlias, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="HostName" />
+                <TextBox
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Margin="0,0,0,6"
+                    FontFamily="Consolas"
+                    Text="{Binding HostName, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock
+                    Grid.Row="2"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="User" />
+                <TextBox
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Margin="0,0,0,6"
+                    FontFamily="Consolas"
+                    Text="{Binding HostUser, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock
+                    Grid.Row="3"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="Port" />
+                <TextBox
+                    Grid.Row="3"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    MaxWidth="120"
+                    Margin="0,0,0,6"
+                    HorizontalAlignment="Left"
+                    FontFamily="Consolas"
+                    Text="{Binding HostPort, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock
+                    Grid.Row="4"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="IdentityFile" />
+                <TextBox
+                    Grid.Row="4"
+                    Grid.Column="1"
+                    Margin="0,0,0,6"
+                    FontFamily="Consolas"
+                    Text="{Binding HostIdentityFile, UpdateSourceTrigger=PropertyChanged}" />
+                <Button
+                    Grid.Row="4"
+                    Grid.Column="2"
+                    Margin="8,0,0,6"
+                    Click="BrowseIdentityFile_OnClick"
+                    Content="{DynamicResource plugin_easyssh_settings_browse}" />
+
+                <TextBlock
+                    Grid.Row="5"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="ProxyJump" />
+                <TextBox
+                    Grid.Row="5"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Margin="0,0,0,6"
+                    FontFamily="Consolas"
+                    Text="{Binding HostProxyJump, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock
+                    Grid.Row="6"
+                    Grid.Column="0"
+                    Margin="0,2,12,6"
+                    VerticalAlignment="Top"
+                    Text="{DynamicResource plugin_easyssh_settings_other_options}" />
+                <TextBox
+                    Grid.Row="6"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    MinHeight="60"
+                    Margin="0,0,0,2"
+                    AcceptsReturn="True"
+                    FontFamily="Consolas"
+                    Text="{Binding HostOtherOptions, UpdateSourceTrigger=PropertyChanged}"
+                    TextWrapping="NoWrap"
+                    VerticalScrollBarVisibility="Auto" />
+                <TextBlock
+                    Grid.Row="7"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Margin="0,0,0,6"
+                    Opacity="0.75"
+                    Text="{DynamicResource plugin_easyssh_settings_other_options_hint}"
+                    TextWrapping="Wrap" />
+
+                <StackPanel
+                    Grid.Row="8"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="3"
+                    Margin="0,4,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+                    <Button
+                        MinWidth="90"
+                        Margin="0,0,8,0"
+                        Click="SaveHost_OnClick"
+                        Content="{DynamicResource plugin_easyssh_settings_save}" />
+                    <Button
+                        MinWidth="90"
+                        Click="CancelHost_OnClick"
+                        Content="{DynamicResource plugin_easyssh_settings_cancel}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Saved commands -->
+        <TextBlock
+            Margin="0,18,0,0"
+            FontSize="14"
+            FontWeight="SemiBold"
+            Text="{DynamicResource plugin_easyssh_settings_commands}" />
+        <TextBlock
+            Margin="0,2,0,6"
+            Opacity="0.75"
+            Text="{DynamicResource plugin_easyssh_settings_commands_description}"
+            TextWrapping="Wrap" />
+        <ListView
+            MaxHeight="200"
+            ItemsSource="{Binding Commands}"
+            MouseDoubleClick="EditCommand_OnClick"
+            SelectedItem="{Binding SelectedCommand}">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn
+                        Width="180"
+                        DisplayMemberBinding="{Binding Name}"
+                        Header="{DynamicResource plugin_easyssh_settings_name}" />
+                    <GridViewColumn
+                        Width="430"
+                        DisplayMemberBinding="{Binding Command}"
+                        Header="{DynamicResource plugin_easyssh_settings_command}" />
+                </GridView>
+            </ListView.View>
+        </ListView>
+        <StackPanel Margin="0,6,0,0" Orientation="Horizontal">
+            <Button
+                MinWidth="90"
+                Margin="0,0,8,0"
+                Click="AddCommand_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_add}" />
+            <Button
+                MinWidth="90"
+                Margin="0,0,8,0"
+                Click="EditCommand_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_edit}"
+                IsEnabled="{Binding HasSelectedCommand}" />
+            <Button
+                MinWidth="90"
+                Click="DeleteCommand_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_delete}"
+                IsEnabled="{Binding HasSelectedCommand}" />
+        </StackPanel>
+        <Border
+            Margin="0,8,0,0"
+            Padding="12"
+            BorderBrush="#40808080"
+            BorderThickness="1"
+            CornerRadius="4"
+            Visibility="{Binding IsEditingCommand, Converter={StaticResource BooleanToVisibility}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="{DynamicResource plugin_easyssh_settings_name}" />
+                <TextBox
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    Margin="0,0,0,6"
+                    Text="{Binding CommandName, UpdateSourceTrigger=PropertyChanged}" />
+
+                <TextBlock
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    Margin="0,0,12,6"
+                    VerticalAlignment="Center"
+                    Text="{DynamicResource plugin_easyssh_settings_command}" />
+                <TextBox
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Margin="0,0,0,6"
+                    FontFamily="Consolas"
+                    Text="{Binding CommandText, UpdateSourceTrigger=PropertyChanged}" />
+
+                <StackPanel
+                    Grid.Row="2"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2"
+                    Margin="0,4,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+                    <Button
+                        MinWidth="90"
+                        Margin="0,0,8,0"
+                        Click="SaveCommand_OnClick"
+                        Content="{DynamicResource plugin_easyssh_settings_save}" />
+                    <Button
+                        MinWidth="90"
+                        Click="CancelCommand_OnClick"
+                        Content="{DynamicResource plugin_easyssh_settings_cancel}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- SSH files -->
+        <TextBlock
+            Margin="0,18,0,0"
+            FontSize="14"
+            FontWeight="SemiBold"
+            Text="{DynamicResource plugin_easyssh_settings_ssh_config}" />
+        <Grid Margin="0,6,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <TextBlock
+                Grid.Row="0"
+                Grid.Column="0"
+                MinWidth="200"
+                Margin="0,0,12,6"
+                VerticalAlignment="Center"
+                Opacity="0.75"
+                Text="{Binding MainConfigPath}" />
+            <Button
+                Grid.Row="0"
+                Grid.Column="1"
+                Margin="0,0,0,6"
+                Click="OpenMainConfig_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_open}" />
+            <TextBlock
+                Grid.Row="1"
+                Grid.Column="0"
+                MinWidth="200"
+                Margin="0,0,12,6"
+                VerticalAlignment="Center"
+                Opacity="0.75"
+                Text="{Binding ManagedConfigPath}" />
+            <Button
+                Grid.Row="1"
+                Grid.Column="1"
+                Margin="0,0,0,6"
+                Click="OpenManagedConfig_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_open}" />
+        </Grid>
+        <CheckBox
+            Margin="0,4,0,0"
+            Content="{DynamicResource plugin_easyssh_settings_known_hosts}"
+            IsChecked="{Binding SuggestKnownHosts}" />
+
+        <!-- Data -->
+        <TextBlock
+            Margin="0,18,0,0"
+            FontSize="14"
+            FontWeight="SemiBold"
+            Text="{DynamicResource plugin_easyssh_settings_data}" />
+        <TextBlock
+            Margin="0,2,0,6"
+            Opacity="0.75"
+            Text="{Binding DataFilePath}"
+            TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal">
+            <Button
+                Margin="0,0,8,0"
+                Click="OpenDataFolder_OnClick"
+                Content="{DynamicResource plugin_easyssh_settings_open_folder}" />
+            <Button Click="ImportLegacy_OnClick" Content="{DynamicResource plugin_easyssh_settings_import}" />
+        </StackPanel>
+
+        <TextBlock
+            Margin="0,12,0,0"
+            FontWeight="SemiBold"
+            Text="{Binding Status}"
+            TextWrapping="Wrap"
+            Visibility="{Binding HasStatus, Converter={StaticResource BooleanToVisibility}}" />
+    </StackPanel>
+</UserControl>

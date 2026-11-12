@@ -1,46 +1,43 @@
 <Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <TargetFramework>net7.0-windows</TargetFramework>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
     <AssemblyName>Flow.Launcher.Plugin.easyssh</AssemblyName>
-    <PackageId>Flow.Launcher.Plugin.easyssh</PackageId>
+    <RootNamespace>Flow.Launcher.Plugin.EasySsh</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Version>3.0.0</Version>
     <Authors>Melv1no</Authors>
+    <PackageId>Flow.Launcher.Plugin.easyssh</PackageId>
     <PackageProjectUrl>https://github.com/Melv1no/Flow.Launcher.Plugin.easyssh</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Melv1no/Flow.Launcher.Plugin.easyssh</RepositoryUrl>
-    <PackageTags>flow-launcher flow-plugin</PackageTags>
-    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <PackageTags>flow-launcher flow-plugin ssh</PackageTags>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DebugSymbols>false</DebugSymbols>
-    <DebugType>None</DebugType>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Embedded symbols give line numbers in Flow Launcher's logs when something goes wrong. -->
+    <DebugType>embedded</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Languages\*.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="plugin.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Images\app.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Images\app-green.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Images\app-red.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-
+    <!-- Flow Launcher ships Flow.Launcher.Plugin itself: compile against it, never copy it.
+         5.0.0 is the API of Flow Launcher 2.0.0, the MinimumAppVersion declared in plugin.json:
+         compiling against it guarantees that no newer API is used by mistake. -->
+    <PackageReference Include="Flow.Launcher.Plugin" Version="5.0.0" ExcludeAssets="runtime" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Flow.Launcher.Plugin" Version="4.0.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <!-- Language files are loaded by Flow Launcher at runtime: they must stay loose XAML, not compiled pages. -->
+    <Page Remove="Languages\*.xaml" />
+    <Content Include="Languages\*.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Images\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-  
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Flow.Launcher.Plugin.easyssh.Tests" />
+  </ItemGroup>
+
 </Project>

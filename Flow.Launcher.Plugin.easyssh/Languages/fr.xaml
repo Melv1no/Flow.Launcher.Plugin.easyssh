@@ -1,45 +1,187 @@
-﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:system="clr-namespace:System;assembly=mscorlib">
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:system="clr-namespace:System;assembly=mscorlib">
 
-    <!-- Meta plugin -->
+    <!-- Plugin -->
     <system:String x:Key="plugin_easyssh_plugin_name">EasySSH</system:String>
-    <system:String x:Key="plugin_easyssh_plugin_description">Enregistrez et lancez des commandes SSH depuis Flow Launcher.</system:String>
+    <system:String x:Key="plugin_easyssh_plugin_description">Cherchez, enregistrez et ouvrez vos connexions SSH, avec les hôtes de votre ~/.ssh/config.</system:String>
 
-    <!-- Messages d’état -->
-    <system:String x:Key="plugin_easyssh_sshnotinstalled_title">EasySSH</system:String>
-    <system:String x:Key="plugin_easyssh_sshnotinstalled_subtitle">Client OpenSSH introuvable sur ce système.</system:String>
+    <!-- Search -->
+    <system:String x:Key="plugin_easyssh_no_match_title">Rien ne correspond à « {0} »</system:String>
+    <system:String x:Key="plugin_easyssh_no_match_subtitle">Vérifiez l'orthographe, ou ajoutez un hôte avec « add »</system:String>
+    <system:String x:Key="plugin_easyssh_host_via">via {0}</system:String>
+    <system:String x:Key="plugin_easyssh_host_duplicate">⚠ aussi déclaré dans {0}, ignoré par ssh</system:String>
+    <system:String x:Key="plugin_easyssh_known_host_subtitle">Déjà connecté (known_hosts) · {0}</system:String>
+    <system:String x:Key="plugin_easyssh_not_managed">Déclaré dans {0} : Entrée pour ouvrir le fichier</system:String>
+    <system:String x:Key="plugin_easyssh_direct_title">Se connecter à {0}</system:String>
+    <system:String x:Key="plugin_easyssh_direct_subtitle">Connexion ponctuelle : {0} · dans {1}</system:String>
+    <system:String x:Key="plugin_easyssh_empty_title">Aucun hôte pour l'instant</system:String>
+    <system:String x:Key="plugin_easyssh_empty_subtitle">Entrée, puis tapez : add &lt;nom&gt; &lt;utilisateur@hôte&gt;. Les hôtes de ~/.ssh/config apparaissent ici.</system:String>
+    <system:String x:Key="plugin_easyssh_shortcut_terminal_title">Terminal : {0}</system:String>
+    <system:String x:Key="plugin_easyssh_shortcut_terminal_subtitle">Choisir le terminal qui ouvre les connexions</system:String>
 
-    <system:String x:Key="plugin_easyssh_databasenotcreated_title">EasySSH</system:String>
-    <system:String x:Key="plugin_easyssh_databasenotcreated_subtitle">Impossible de créer la base des profils.</system:String>
+    <!-- Commands -->
+    <system:String x:Key="plugin_easyssh_cmd_add_title">Ajouter un hôte</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_add_subtitle">add &lt;nom&gt; &lt;utilisateur@hôte ou commande ssh&gt; · écrit dans ~/.ssh/easyssh.config</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_edit_title">Modifier un hôte ou une commande</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_edit_subtitle">edit &lt;recherche&gt; · il s'ouvre dans la barre de recherche, modifiez-le puis Entrée</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_remove_title">Supprimer un hôte ou une commande</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_remove_subtitle">remove &lt;recherche&gt; · une confirmation est demandée</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_hosts_title">Chercher vos hôtes</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_hosts_subtitle">hosts &lt;recherche&gt; (ou p) · vous pouvez aussi taper directement la recherche</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_direct_title">Se connecter sans enregistrer</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_direct_subtitle">d &lt;utilisateur@hôte ou commande ssh&gt;</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_terminal_title">Choisir le terminal</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_terminal_subtitle">terminal · terminal add · terminal remove</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_config_title">Fichiers de configuration SSH</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_config_subtitle">config · ouvrir ~/.ssh/config et les fichiers qu'il inclut</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_hidden_title">Hôtes masqués</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_hidden_subtitle">hidden · réafficher un hôte masqué</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_help_title">Toutes les commandes</system:String>
+    <system:String x:Key="plugin_easyssh_cmd_help_subtitle">help · tout ce que sait faire EasySSH</system:String>
+    <system:String x:Key="plugin_easyssh_docs_title">Ouvrir la documentation</system:String>
+    <system:String x:Key="plugin_easyssh_settings_title">Ouvrir les paramètres</system:String>
+    <system:String x:Key="plugin_easyssh_settings_subtitle">Gérez hôtes, commandes et terminaux dans les paramètres de Flow Launcher → Plugins → EasySSH</system:String>
 
-    <!-- Par défaut / aide -->
-    <system:String x:Key="plugin_easyssh_subtitle_default">Tapez : add ; remove ; profiles|p ; direct|d ; shell ; docs</system:String>
+    <!-- Add -->
+    <system:String x:Key="plugin_easyssh_add_name_title">Ajouter « {0} »</system:String>
+    <system:String x:Key="plugin_easyssh_add_missing_command">Tapez maintenant l'hôte (utilisateur@hôte) ou la commande ssh complète</system:String>
+    <system:String x:Key="plugin_easyssh_add_host_title">Ajouter l'hôte « {0} »</system:String>
+    <system:String x:Key="plugin_easyssh_update_host_title">Mettre à jour l'hôte « {0} »</system:String>
+    <system:String x:Key="plugin_easyssh_add_host_subtitle">Se connecte à {0} · écrit dans {1}</system:String>
+    <system:String x:Key="plugin_easyssh_add_exists_title">« {0} » est déjà un hôte de votre configuration SSH</system:String>
+    <system:String x:Key="plugin_easyssh_add_exists_subtitle">Déclaré dans {0} : Entrée pour ouvrir le fichier, ou choisissez un autre nom</system:String>
+    <system:String x:Key="plugin_easyssh_add_command_title">Ajouter la commande « {0} »</system:String>
+    <system:String x:Key="plugin_easyssh_update_command_title">Mettre à jour la commande « {0} »</system:String>
+    <system:String x:Key="plugin_easyssh_add_command_subtitle">Commande : {0} · enregistrée dans EasySSH, car {1}</system:String>
+    <system:String x:Key="plugin_easyssh_why_name">ce nom ne peut pas être un alias ssh</system:String>
+    <system:String x:Key="plugin_easyssh_why_alias">l'hôte {0} existe déjà et ssh_config ne peut pas lui ajouter d'options</system:String>
+    <system:String x:Key="plugin_easyssh_why_option">ssh_config n'a pas d'équivalent pour {0}</system:String>
+    <system:String x:Key="plugin_easyssh_why_program">elle lance {0}, pas ssh</system:String>
+    <system:String x:Key="plugin_easyssh_why_rules">les motifs Host de votre configuration qui s&apos;appliquent à {0} ne s&apos;appliqueraient pas à {1}</system:String>
+    <system:String x:Key="plugin_easyssh_why_exists">l&apos;hôte {0} existe déjà dans votre configuration</system:String>
+    <system:String x:Key="plugin_easyssh_add_host_global">s&apos;applique à toutes les connexions à {0}, même hors d&apos;EasySSH</system:String>
+    <system:String x:Key="plugin_easyssh_add_managed_conflict_title">« {0} » est un hôte enregistré avec EasySSH</system:String>
+    <system:String x:Key="plugin_easyssh_add_managed_conflict_subtitle">Cette commande ne peut pas le remplacer, car {0}. Choisissez un autre nom pour l&apos;enregistrer comme commande.</system:String>
+    <system:String x:Key="plugin_easyssh_ssh_refused">ssh refuse cette configuration, rien n&apos;a été enregistré : {0}</system:String>
 
-    <!-- AJOUT -->
-    <system:String x:Key="plugin_easyssh_title_commandadd">Ajouter un profil</system:String>
-    <system:String x:Key="plugin_easyssh_subtitle_commandadd">Usage : add &lt;nom&gt; ssh user@host</system:String>
+    <!-- Remove -->
+    <system:String x:Key="plugin_easyssh_remove_host_confirm">Supprimer l'hôte « {0} » de {1} ?</system:String>
+    <system:String x:Key="plugin_easyssh_remove_command_confirm">Supprimer la commande « {0} » ({1}) ?</system:String>
+    <system:String x:Key="plugin_easyssh_host_not_managed">« {0} » n'est pas dans {1} : EasySSH ne modifie que les hôtes qu'il a enregistrés</system:String>
 
-    <!-- SUPPRESSION -->
-    <system:String x:Key="plugin_easyssh_title_commandremove">Supprimer un profil</system:String>
-    <system:String x:Key="plugin_easyssh_subtitle_commandremove">Sélectionnez un profil à supprimer.</system:String>
+    <!-- Terminals -->
+    <system:String x:Key="plugin_easyssh_terminal_cmd">Invite de commandes</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_wt">Windows Terminal</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_powershell">Windows PowerShell</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_pwsh">PowerShell 7</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_selected">Sélectionné · {0}</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_not_found">Introuvable sur cet ordinateur</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_missing">Impossible de lancer « {0} » : {1} est introuvable. Choisissez un autre terminal avec « ssh terminal ».</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_add_usage_title">Ajouter un terminal personnalisé</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_add_usage_subtitle">terminal add &lt;nom&gt; &lt;programme&gt; [arguments, {command} pour la commande ssh]</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_remove_usage_title">Supprimer un terminal personnalisé</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_remove_usage_subtitle">terminal remove &lt;nom&gt;</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_add_title">Ajouter le terminal « {0} »</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_update_title">Mettre à jour le terminal « {0} »</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_add_not_found">Introuvable sur cet ordinateur : {0}</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_reserved">« {0} » est le nom d'un terminal intégré, choisissez un autre nom</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_none_title">Aucun terminal personnalisé</system:String>
+    <system:String x:Key="plugin_easyssh_terminal_no_match_title">Aucun terminal ne correspond à « {0} »</system:String>
+    <system:String x:Key="plugin_easyssh_pause_prompt">Appuyez sur Entrée pour fermer</system:String>
 
-    <!-- PROFILS -->
-    <system:String x:Key="plugin_easyssh_title_commandprofiles">Profils enregistrés</system:String>
-    <system:String x:Key="plugin_easyssh_subtitle_commandprofiles">Sélectionnez un profil pour vous connecter.</system:String>
+    <!-- SSH configuration files -->
+    <system:String x:Key="plugin_easyssh_config_file_subtitle">Hôtes : {0} · Entrée pour ouvrir</system:String>
+    <system:String x:Key="plugin_easyssh_config_managed_subtitle">Hôtes enregistrés avec EasySSH : {0} · Entrée pour ouvrir</system:String>
+    <system:String x:Key="plugin_easyssh_config_file_missing">N'existe pas encore</system:String>
+    <system:String x:Key="plugin_easyssh_config_managed_missing">Créé quand vous ajoutez un hôte avec EasySSH</system:String>
+    <system:String x:Key="plugin_easyssh_include_added">La ligne « Include easyssh.config » a été ajoutée en tête de {0}, pour que ssh trouve les hôtes enregistrés avec EasySSH.</system:String>
+    <system:String x:Key="plugin_easyssh_include_missing_title">ssh ne voit pas les hôtes enregistrés avec EasySSH</system:String>
+    <system:String x:Key="plugin_easyssh_include_missing_subtitle">Votre {0} n'inclut plus easyssh.config : Entrée pour ajouter « {1} » en tête</system:String>
 
-    <!-- CONNEXION DIRECTE -->
-    <system:String x:Key="plugin_easyssh_subtitle_commanddirectconnect">Connexion directe :</system:String>
+    <!-- Hidden hosts -->
+    <system:String x:Key="plugin_easyssh_hidden_none_title">Aucun hôte masqué</system:String>
+    <system:String x:Key="plugin_easyssh_hidden_none_subtitle">Masquez un hôte depuis son menu contextuel (Maj+Entrée) pour l'écarter des résultats</system:String>
+    <system:String x:Key="plugin_easyssh_hidden_subtitle">Masqué · Entrée pour le réafficher</system:String>
 
-    <system:String x:Key="plugin_easyssh_title_commandshell_add">Ajouter un profil shell</system:String>
-    <system:String x:Key="plugin_easyssh_subtitle_commandshell_add_usage_onlyexe">Usage : shell add &lt;exe&gt; ou shell add &lt;nom&gt; &lt;exe + args&gt;</system:String>
+    <!-- Context menu -->
+    <system:String x:Key="plugin_easyssh_ctx_copy">Copier la commande</system:String>
+    <system:String x:Key="plugin_easyssh_ctx_sftp">Ouvrir une session SFTP</system:String>
+    <system:String x:Key="plugin_easyssh_ctx_edit">Modifier</system:String>
+    <system:String x:Key="plugin_easyssh_ctx_edit_subtitle">L'ouvre dans la barre de recherche : modifiez-le puis Entrée</system:String>
+    <system:String x:Key="plugin_easyssh_ctx_remove">Supprimer</system:String>
+    <system:String x:Key="plugin_easyssh_ctx_hide">Masquer dans EasySSH</system:String>
+    <system:String x:Key="plugin_easyssh_ctx_hide_subtitle">L'hôte reste dans votre configuration SSH ; « ssh hidden » le réaffiche</system:String>
+    <system:String x:Key="plugin_easyssh_ctx_open_file">Ouvrir le fichier de configuration</system:String>
+    <system:String x:Key="plugin_easyssh_ctx_save">Enregistrer comme hôte</system:String>
+    <system:String x:Key="plugin_easyssh_ctx_save_subtitle">Ouvre « add {0} … » dans la barre de recherche</system:String>
+    <system:String x:Key="plugin_easyssh_ctx_open_in">Ouvrir dans {0}</system:String>
 
-    <system:String x:Key="plugin_easyssh_title_commandshell_remove">Supprimer un profil shell</system:String>
-    <system:String x:Key="plugin_easyssh_subtitle_commandshell_remove">Sélectionnez un profil shell à supprimer.</system:String>
+    <!-- Status and errors -->
+    <system:String x:Key="plugin_easyssh_ssh_missing_title">Client OpenSSH introuvable</system:String>
+    <system:String x:Key="plugin_easyssh_ssh_missing_subtitle">Entrée pour ouvrir les fonctionnalités facultatives de Windows et ajouter « Client OpenSSH »</system:String>
+    <system:String x:Key="plugin_easyssh_launch_error_title">EasySSH n'a pas pu ouvrir le terminal</system:String>
+    <system:String x:Key="plugin_easyssh_save_error_title">EasySSH n'a pas pu enregistrer vos modifications</system:String>
+    <system:String x:Key="plugin_easyssh_file_missing_title">Fichier introuvable</system:String>
+    <system:String x:Key="plugin_easyssh_init_error_title">EasySSH n'a pas pu démarrer</system:String>
+    <system:String x:Key="plugin_easyssh_init_error_subtitle">Entrée pour ouvrir son dossier de données. Détails :</system:String>
+    <system:String x:Key="plugin_easyssh_query_error_title">EasySSH a rencontré une erreur, voir le journal de Flow Launcher</system:String>
+    <system:String x:Key="plugin_easyssh_import_done">Importé depuis {4} : {0} hôte(s) dans {1}, {2} commande(s), {3} terminal(aux).</system:String>
+    <system:String x:Key="plugin_easyssh_data_restored">Votre fichier de données EasySSH était endommagé et a été restauré depuis sa sauvegarde. Le fichier endommagé a été conservé : {0}</system:String>
+    <system:String x:Key="plugin_easyssh_data_reset">Votre fichier de données EasySSH était endommagé et aucune sauvegarde n'était disponible. Le fichier endommagé a été conservé : {0}</system:String>
 
-    <system:String x:Key="plugin_easyssh_subtitle_commandshell_help_onlyexe">Utilisez : shell add ; remove ; list</system:String>
-
-    <!-- STATUT SHELL -->
-    <system:String x:Key="plugin_easyssh_shell_selected">(sélectionné)</system:String>
+    <!-- Settings -->
+    <system:String x:Key="plugin_easyssh_settings_terminal">Terminal</system:String>
+    <system:String x:Key="plugin_easyssh_settings_terminal_description">Programme qui ouvre les connexions. L'invite de commandes utilise le terminal choisi dans les paramètres de Windows. Les clients graphiques (PuTTY, KiTTY…) ouvrent leur propre fenêtre.</system:String>
+    <system:String x:Key="plugin_easyssh_settings_keep_open">Garder la fenêtre ouverte quand la connexion échoue, pour lire l'erreur</system:String>
+    <system:String x:Key="plugin_easyssh_settings_custom_terminals">Terminaux personnalisés</system:String>
+    <system:String x:Key="plugin_easyssh_settings_custom_terminals_description">Dans les arguments, {command} est remplacé par la commande ssh et {name} par le nom de l'hôte. Sans {command}, la commande est ajoutée à la fin. Exemple, Windows Terminal avec un profil : wt.exe -p "Git Bash" {command}</system:String>
+    <system:String x:Key="plugin_easyssh_settings_hosts">Hôtes</system:String>
+    <system:String x:Key="plugin_easyssh_settings_hosts_description">Les hôtes de votre configuration SSH. Ceux enregistrés avec EasySSH sont dans ~/.ssh/easyssh.config et se modifient ici ; les autres sont dans vos propres fichiers : « Modifier » les ouvre.</system:String>
+    <system:String x:Key="plugin_easyssh_settings_alias">Alias</system:String>
+    <system:String x:Key="plugin_easyssh_settings_target">Se connecte à</system:String>
+    <system:String x:Key="plugin_easyssh_settings_file">Fichier</system:String>
+    <system:String x:Key="plugin_easyssh_settings_open_file">Ouvrir le fichier</system:String>
+    <system:String x:Key="plugin_easyssh_settings_other_options">Autres options</system:String>
+    <system:String x:Key="plugin_easyssh_settings_other_options_hint">Une option ssh_config par ligne, par exemple : LocalForward 8080 localhost:80</system:String>
+    <system:String x:Key="plugin_easyssh_settings_commands">Commandes</system:String>
+    <system:String x:Key="plugin_easyssh_settings_commands_description">Les commandes que ssh_config ne sait pas décrire : autres programmes (wsl, plink, mosh…) ou options ssh comme -N. Une commande qui ne commence pas par un programme est lancée avec ssh.</system:String>
+    <system:String x:Key="plugin_easyssh_settings_name">Nom</system:String>
+    <system:String x:Key="plugin_easyssh_settings_program">Programme</system:String>
+    <system:String x:Key="plugin_easyssh_settings_arguments">Arguments</system:String>
+    <system:String x:Key="plugin_easyssh_settings_command">Commande</system:String>
+    <system:String x:Key="plugin_easyssh_settings_add">Ajouter</system:String>
+    <system:String x:Key="plugin_easyssh_settings_edit">Modifier</system:String>
+    <system:String x:Key="plugin_easyssh_settings_delete">Supprimer</system:String>
+    <system:String x:Key="plugin_easyssh_settings_save">Enregistrer</system:String>
+    <system:String x:Key="plugin_easyssh_settings_cancel">Annuler</system:String>
+    <system:String x:Key="plugin_easyssh_settings_browse">Parcourir…</system:String>
+    <system:String x:Key="plugin_easyssh_settings_open">Ouvrir</system:String>
+    <system:String x:Key="plugin_easyssh_settings_hide">Masquer</system:String>
+    <system:String x:Key="plugin_easyssh_settings_show">Afficher</system:String>
+    <system:String x:Key="plugin_easyssh_settings_hidden_state">masqué</system:String>
+    <system:String x:Key="plugin_easyssh_settings_ssh_config">Configuration SSH</system:String>
+    <system:String x:Key="plugin_easyssh_settings_known_hosts">Suggérer pendant la frappe les serveurs où vous vous êtes déjà connecté (~/.ssh/known_hosts)</system:String>
+    <system:String x:Key="plugin_easyssh_settings_data">Données</system:String>
+    <system:String x:Key="plugin_easyssh_settings_open_folder">Ouvrir le dossier</system:String>
+    <system:String x:Key="plugin_easyssh_settings_import">Importer depuis EasySSH 1.x (~/.ssh/profiles.json)</system:String>
+    <system:String x:Key="plugin_easyssh_settings_error_name">Le nom est obligatoire</system:String>
+    <system:String x:Key="plugin_easyssh_settings_error_command">La commande est obligatoire</system:String>
+    <system:String x:Key="plugin_easyssh_settings_error_program">Le programme est obligatoire</system:String>
+    <system:String x:Key="plugin_easyssh_settings_error_duplicate">« {0} » existe déjà</system:String>
+    <system:String x:Key="plugin_easyssh_settings_error_alias">L'alias doit être un seul mot fait de lettres, chiffres, points, tirets ou soulignés</system:String>
+    <system:String x:Key="plugin_easyssh_settings_error_port">Le port doit être un nombre entre 1 et 65535</system:String>
+    <system:String x:Key="plugin_easyssh_settings_error_value">Le champ {0} ne peut contenir ni guillemets ni espaces</system:String>
+    <system:String x:Key="plugin_easyssh_settings_error_host_exists">« {0} » est déjà déclaré dans {1}</system:String>
+    <system:String x:Key="plugin_easyssh_settings_error_option">Option invalide : {0}</system:String>
+    <system:String x:Key="plugin_easyssh_settings_saved">Enregistré</system:String>
+    <system:String x:Key="plugin_easyssh_settings_host_saved">« {0} » enregistré dans {1}</system:String>
+    <system:String x:Key="plugin_easyssh_settings_deleted">« {0} » supprimé</system:String>
+    <system:String x:Key="plugin_easyssh_settings_hidden">« {0} » est masqué dans les résultats</system:String>
+    <system:String x:Key="plugin_easyssh_settings_shown">« {0} » est de nouveau affiché dans les résultats</system:String>
+    <system:String x:Key="plugin_easyssh_settings_opened_file">« {0} » est déclaré dans {1} : le fichier a été ouvert</system:String>
+    <system:String x:Key="plugin_easyssh_settings_delete_confirm">Supprimer « {0} » ?</system:String>
+    <system:String x:Key="plugin_easyssh_settings_nothing_to_import">Rien à importer : {0} n'existe pas</system:String>
 
 </ResourceDictionary>
