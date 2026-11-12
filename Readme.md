@@ -9,8 +9,6 @@ EasySSH for Flow Launcher
 A [Flow Launcher](https://www.flowlauncher.com/) plugin to search, save and open SSH connections, built on your
 OpenSSH configuration (`~/.ssh/config`).
 
-![EasySSH](https://github.com/Melv1no/Flow.Launcher.Plugin.easyssh/assets/66535418/2b864355-51c6-4a9a-b4ad-9460cf9328d3)
-
 - Type `ssh` and a few letters to find a host of your `~/.ssh/config`, press <kbd>Enter</kbd> to connect.
 - Hosts you add with EasySSH are written in standard ssh_config syntax: `ssh prod` works in any terminal,
   VS Code Remote-SSH or scp, not only in Flow Launcher.
@@ -21,7 +19,8 @@ OpenSSH configuration (`~/.ssh/config`).
 
 ## Requirements
 
-- Flow Launcher **2.0** or later.
+- Flow Launcher **2.0** or later. EasySSH 3 doesn't load on Flow Launcher 1.x: update Flow Launcher first (type
+  `sys`, then *Check For Update*).
 - The OpenSSH client (`ssh.exe`). It ships with Windows 10/11; if it's missing, add **OpenSSH Client** in
   *Settings → System → Optional features*.
 
@@ -192,42 +191,15 @@ run again from the settings (it adds nothing twice).
   `Include easyssh.config` (`ssh config` warns you if not).
 - **"OpenSSH client not found":** add *OpenSSH Client* in Windows optional features, or use a command with another
   program.
-- **The plugin doesn't load:** look at Flow Launcher's log (type `sys`, then *Open Log Location*) and open an
-  [issue](https://github.com/Melv1no/Flow.Launcher.Plugin.easyssh/issues) with the lines mentioning EasySSH.
+- **The plugin doesn't load:** check that Flow Launcher is 2.0 or later. Otherwise, look at Flow Launcher's log
+  (type `sys`, then *Open Log Location*) and open an
+  [issue](https://github.com/Melv1no/Flow.Launcher.Plugin.easyssh/issues) with the lines mentioning EasySSH
+  ([what to include](CONTRIBUTING.md#reporting-a-bug)).
 
-## Development
+## Contributing
 
-Requirements: the .NET 9 SDK (or later) on Windows.
-
-```powershell
-dotnet build                     # build the plugin and the tests
-dotnet test                      # run the tests (they only use temporary folders, never your ~/.ssh)
-./scripts/package.ps1            # create artifacts/easyssh.zip, as published
-./scripts/deploy-local.ps1       # install that zip in your Flow Launcher (the installed copy is kept in a backup)
-./scripts/deploy-local.ps1 -ResetData   # same, and start from scratch: the 1.x data is imported again
-```
-
-The icons of `Flow.Launcher.Plugin.easyssh/Images` are drawn by `scripts/icons/generate-icons.cs` (colors, shapes
-and badges are at the top of the file). To change them, edit the script and run it with the .NET 10 SDK:
-
-```powershell
-dotnet run scripts/icons/generate-icons.cs                              # write the PNG files
-dotnet run scripts/icons/generate-icons.cs -- --preview preview.png     # also write a sheet of every size
-```
-
-The plugin is compiled against `Flow.Launcher.Plugin` 5.0.0, the API of Flow Launcher 2.0 (`MinimumAppVersion`
-in `plugin.json`), so it can't use a newer API by mistake. The code is split in:
-
-- `Core/`: pure logic (command parsing, ssh_config reading and conversion, search, terminals), without Flow Launcher;
-- `Storage/`: the files: `easyssh.config` and the `Include` line, `easyssh.json`, the import of the 1.x data;
-- `QueryHandler.cs`, `Main.cs`, `Settings/`: the Flow Launcher integration.
-
-### Releasing
-
-1. Update `Version` in `Flow.Launcher.Plugin.easyssh/plugin.json` and add the changes to `CHANGELOG.md`.
-2. Merge into `master`. The *Release* workflow tests, packages and publishes the GitHub release `<version>`.
-3. The [Flow Launcher plugin manifest](https://github.com/Flow-Launcher/Flow.Launcher.PluginsManifest) picks the
-   release up within a few hours and offers the update to users.
+Bug reports, ideas, translations and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md)
+([en français](CONTRIBUTING.md#français)) explains how to report a bug, and how to build, test and try the plugin.
 
 ## Contributors
 
